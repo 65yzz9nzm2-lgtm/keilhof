@@ -10,7 +10,7 @@ const CONFIG = {
   // Supabase-Projekt-URL und öffentlicher ("publishable") API-Key DEINES Projekts.
   // Zu finden in Supabase: Project Settings -> API (bzw. "API Keys").
   SUPABASE_URL: 'https://DEIN-PROJEKT.supabase.co',
-  SUPABASE_ANON_KEY: 'DEIN_PUBLISHABLE_KEY',
+  SUPABASE_ANON_KEY: 'sb_publishable_YqWlLwXBDoAqSPKEHhoFsg_GfWlwrJm',
 
   // Module ein-/ausschalten. Weinbau & Keller ist für den Keilhof deaktiviert.
   MODULE: {
