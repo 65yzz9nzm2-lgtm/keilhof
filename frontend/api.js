@@ -20,7 +20,11 @@ const Auth = {
     document.getElementById('btnGoogleSignIn').onclick = () => {
       supabaseClient.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: location.origin + location.pathname }
+        options: {
+          redirectTo: location.origin + location.pathname,
+          // Google soll immer die Kontoauswahl zeigen, damit man das Konto wechseln kann
+          queryParams: { prompt: 'select_account' }
+        }
       });
     };
 
