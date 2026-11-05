@@ -12,7 +12,8 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
   - Anzahl aktiver Völker je Bienenstand zu einem frei wählbaren Stichtag
   - Honigernte-Auswertung je Jahr, Volk und Stand
   - Betriebskodex Hof und Imkerei im Kopf der Exporte
-- [ ] Phase 4 – QR-Codes je Volk + Druckansicht je Bienenstand
+- [x] Phase 4 – QR-Codes je Volk + Druckansicht je Bienenstand
+  - Offen/optional: QR-Scanner direkt in der App (iOS öffnet gescannte Links sonst in Safari statt in der Home-Bildschirm-App)
 - [ ] Phase 5 – Spracheingabe bei der Durchsicht (Transkription + Claude über Supabase Edge Function)
 - [ ] Phase 6 – Offline-Erfassung (erst nach Rücksprache: Aufwand abschätzen)
 

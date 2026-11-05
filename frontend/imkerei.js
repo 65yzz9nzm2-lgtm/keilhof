@@ -294,6 +294,7 @@ function renderImkereiSection() {
           ${stand ? `<div class="flex gap-1 flex-wrap">
             <button data-stand="${stand.ID}" class="btn-stand-volk text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded">+ Volk</button>
             <button data-stand="${stand.ID}" class="btn-stand-aufgabe text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded">+ Aufgabe</button>
+            <button data-stand="${stand.ID}" class="btn-stand-qr text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded">🏷️ QR-Etiketten</button>
             <button data-stand="${stand.ID}" class="btn-stand-edit text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1.5 rounded">Bearbeiten</button>
           </div>` : ''}
         </div>
@@ -309,6 +310,8 @@ function renderImkereiSection() {
   container.querySelectorAll('.btn-stand-volk').forEach(b => b.onclick = () => openVolkModal({ BienenstandID: b.dataset.stand }));
   container.querySelectorAll('.btn-stand-aufgabe').forEach(b => b.onclick = () => openAufgabeModal({ BienenstandID: b.dataset.stand }));
   container.querySelectorAll('.btn-stand-edit').forEach(b => b.onclick = () => openBienenstandModal(standById(b.dataset.stand)));
+  container.querySelectorAll('.btn-stand-qr').forEach(b => b.onclick = () => druckeQrEtiketten(
+    aktiveVoelker().filter(v => v.BienenstandID === b.dataset.stand).sort(nachNummer), `QR-Etiketten: ${standName(b.dataset.stand)}`));
 
   // Register: ehemalige Völker (aufgelöst/verkauft/eingegangen ...)
   const ehemalige = imker.voelker.filter(v => istSichtbar(v) && v.Status !== 'Aktiv');
@@ -977,6 +980,8 @@ function renderStockkarte(volkId) {
       <button type="button" data-typ="Auflösung/Verlust" class="btn-ereignis col-span-2 bg-white border border-red-200 text-red-700 py-3 rounded-lg text-sm">✝️ Auflösung / Verlust</button>
     </div>
 
+    ${qrBereichHtml(volk)}
+
     <div>
       <div class="font-semibold mb-1">🔬 Varroa – Milbenfall pro Tag</div>
       ${varroaDiagrammSvg(volk.ID)}
@@ -1002,6 +1007,7 @@ function renderStockkarte(volkId) {
   body.querySelectorAll('.btn-ereignis').forEach(b => b.onclick = () => openEreignisModal(volk, b.dataset.typ));
   body.querySelectorAll('.btn-goto-volk').forEach(b => b.onclick = () => { _stockkarteVolkId = b.dataset.volk; renderStockkarte(b.dataset.volk); body.scrollTop = 0; });
 
+  qrBereichVerbinden(volk);
   renderZeitleiste(volk, document.getElementById('stockkarteZeitleiste'));
 }
 
@@ -1891,4 +1897,115 @@ async function renderImkerAuswertung() {
   bei('awStCsv', 'click', () => exportStichtag('csv'));
   bei('awHonigDruck', 'click', () => exportHonig());
   bei('awHonigVerkauf', 'click', () => openHonigVerkauf());
+}
+
+// ============================================================================
+// QR-CODES: jedes Volk hat einen eigenen Code (voelker.qr_code). Der QR-Code
+// enthält einen Link auf die App mit ?volk=CODE - nach dem Scannen (und ggf.
+// Anmelden) öffnet sich direkt die Stockkarte.
+// ============================================================================
+const QR_ZIEL_KEY = 'imker_qr_ziel';
+
+// Beim Laden der Seite den Code aus dem Link merken - auch über die Google-Anmeldung
+// hinweg (die leitet ohne ?volk=... zurück), danach den Link wieder "sauber" machen.
+(function merkeQrZiel() {
+  const code = new URLSearchParams(location.search).get('volk');
+  if (!code) return;
+  try { localStorage.setItem(QR_ZIEL_KEY, code); } catch (e) { /* egal */ }
+  history.replaceState(null, '', location.pathname + location.hash);
+})();
+
+// Wird nach der Anmeldung aufgerufen (onSignedIn in app.js)
+async function imkerQrZielOeffnen() {
+  let code = null;
+  try { code = localStorage.getItem(QR_ZIEL_KEY); localStorage.removeItem(QR_ZIEL_KEY); } catch (e) { /* egal */ }
+  if (!code) return;
+  await ladeImkerDaten();
+  const volk = imker.voelker.find(v => istSichtbar(v) && String(v.QRCode).toUpperCase() === code.trim().toUpperCase());
+  if (!volk) { toast(`Zum QR-Code „${code}“ gibt es kein Volk (Etikett ersetzt?).`, true); return; }
+  await showSection('imkerei');
+  await openStockkarte(volk.ID);
+}
+
+function volkLink(volk) {
+  return `${location.origin}${location.pathname}?volk=${encodeURIComponent(volk.QRCode)}`;
+}
+
+function qrSvg(text) {
+  if (typeof qrcode === 'undefined') {
+    return '<div class="text-xs text-red-600 p-2">QR-Code kann gerade nicht erzeugt werden (Internetverbindung nötig).</div>';
+  }
+  const qr = qrcode(0, 'M'); // Typ automatisch, Fehlerkorrektur M (~15 % dürfen verschmutzt sein)
+  qr.addData(text);
+  qr.make();
+  return qr.createSvgTag({ cellSize: 4, margin: 8, scalable: true });
+}
+
+function neuerQrCode() {
+  const vorhandene = new Set(imker.voelker.map(v => String(v.QRCode).toUpperCase()));
+  let code;
+  do {
+    const bytes = crypto.getRandomValues(new Uint8Array(4));
+    code = [...bytes].map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+  } while (vorhandene.has(code));
+  return code;
+}
+
+function qrBereichHtml(volk) {
+  return `<details class="bg-gray-50 rounded-xl p-3">
+    <summary class="font-semibold cursor-pointer">🏷️ QR-Code &amp; Etikett</summary>
+    <div class="flex items-center gap-4 mt-3 flex-wrap">
+      <div class="bg-white rounded-lg border p-1 shrink-0" style="width:136px;height:136px">${qrSvg(volkLink(volk)).replace('<svg ', '<svg style="width:100%;height:100%" ')}</div>
+      <div class="space-y-2 text-sm min-w-0">
+        <div>Code: <b class="font-mono">${esc(volk.QRCode)}</b></div>
+        <div class="text-xs text-gray-500">Scannen öffnet diese Stockkarte.</div>
+        <div class="flex gap-2 flex-wrap">
+          <button type="button" id="skQrDruck" class="bg-green-700 text-white px-3 py-2 rounded text-sm">🖨️ Etikett drucken</button>
+          <button type="button" id="skQrNeu" class="bg-white border px-3 py-2 rounded text-sm">Neuen Code vergeben</button>
+        </div>
+      </div>
+    </div>
+  </details>`;
+}
+
+function qrBereichVerbinden(volk) {
+  const druck = document.getElementById('skQrDruck');
+  if (druck) druck.onclick = () => druckeQrEtiketten([volk], `QR-Etikett ${volkLabel(volk)}`);
+  const neu = document.getElementById('skQrNeu');
+  if (neu) neu.onclick = async () => {
+    if (!confirm('Neuen QR-Code vergeben? Das bisherige Etikett dieses Volkes funktioniert danach nicht mehr.')) return;
+    try {
+      await imkerSpeichern('voelker', { QRCode: neuerQrCode() }, volk.ID);
+      toast('Neuer QR-Code vergeben - bitte neues Etikett drucken.');
+    } catch (e) {
+      toast(e.message, true);
+    }
+    imkerNeuZeichnen();
+  };
+}
+
+function qrEtikettHtml(volk) {
+  const b = state.betrieb || {};
+  return `<div class="qr-etikett">
+    <div class="qr-bild">${qrSvg(volkLink(volk))}</div>
+    <div class="qr-nr">${esc(volkLabel(volk))}</div>
+    <div class="qr-info">${esc(standName(volk.BienenstandID))}${b.HofName ? ' · ' + esc(b.HofName) : ''}</div>
+    <div class="qr-code">${esc(volk.QRCode)}</div>
+  </div>`;
+}
+
+function druckeQrEtiketten(voelker, titel) {
+  if (!voelker.length) { toast('Keine aktiven Völker für Etiketten.', true); return; }
+  if (typeof qrcode === 'undefined') { toast('QR-Codes brauchen eine Internetverbindung - bitte später nochmal versuchen.', true); return; }
+  drucken(`<style>
+      #druckBereich .qr-raster { display: grid; grid-template-columns: repeat(3, 1fr); }
+      #druckBereich .qr-etikett { border: 1px dashed #999; padding: 4mm; text-align: center; break-inside: avoid; page-break-inside: avoid; }
+      #druckBereich .qr-bild svg { width: 42mm; height: 42mm; }
+      #druckBereich .qr-nr { font-size: 14pt; font-weight: bold; margin-top: 1mm; }
+      #druckBereich .qr-info { font-size: 8pt; color: #444; }
+      #druckBereich .qr-code { font-family: monospace; font-size: 8pt; color: #666; }
+    </style>
+    <h1>${esc(titel)}</h1>
+    <div class="dk-meta">Entlang der gestrichelten Linien ausschneiden. Wetterfest: laminieren oder mit Klebefolie überziehen.</div>
+    <div class="qr-raster">${voelker.map(qrEtikettHtml).join('')}</div>`);
 }

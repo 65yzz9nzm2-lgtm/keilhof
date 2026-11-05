@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-05.3'; // muss mit version.json übereinstimmen
+const APP_VERSION = '2026-11-05.4'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -560,6 +560,9 @@ async function onSignedIn(profile) {
       await fullSync();
       await showSection('dashboard');
     }
+
+    // Wurde die App über einen QR-Code eines Bienenvolks geöffnet -> Stockkarte zeigen
+    if (IMKEREI_AKTIV) imkerQrZielOeffnen();
 
     refreshSidebarAktiveNutzer();
     setInterval(refreshSidebarAktiveNutzer, 3 * 60 * 1000);
