@@ -12,9 +12,11 @@ const CONFIG = {
   SUPABASE_URL: 'https://zaaqjqlhnhpjzvdfmyqj.supabase.co',
   SUPABASE_ANON_KEY: 'sb_publishable_YqWlLwXBDoAqSPKEHhoFsg_GfWlwrJm',
 
-  // Module ein-/ausschalten. Weinbau & Keller ist für den Keilhof deaktiviert.
+  // Module ein-/ausschalten. Weinbau & Keller ist für den Keilhof deaktiviert,
+  // Imkerei ist eingeschaltet (braucht backend/IMKEREI_SETUP.sql in Supabase).
   MODULE: {
-    WEINBAU: false
+    WEINBAU: false,
+    IMKEREI: true
   },
 
   // GeoServer-WMS der Autonomen Provinz Bozen (Kataster-Workspace).

@@ -2,6 +2,8 @@
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
+// Imkerei gibt es erst seit dem Keilhof - fehlt der Eintrag, bleibt das Modul aus.
+const IMKEREI_AKTIV = !!(CONFIG.MODULE && CONFIG.MODULE.IMKEREI === true);
 
 // ============================================================================
 // GLOBALER STATE
@@ -304,8 +306,13 @@ function fieldHtml(f, value) {
       break;
     case 'hidden':
       return `<input type="hidden" id="field_${f.key}" name="${f.key}" value="${val}">`;
+    case 'html':
+      // Frei gestalteter Block (z.B. Mehrfachauswahl) - liest sein onSubmit selbst aus.
+      return `<div>${f.label ? `<label class="block text-sm font-medium text-gray-600 mb-1">${f.label}</label>` : ''}${f.html || ''}</div>`;
     default:
-      inner = `<input type="${f.type || 'text'}" ${common} value="${val}" ${f.step ? `step="${f.step}"` : ''} ${req}>`;
+      // f.suggestions: Vorschläge zum Antippen, freie Eingabe bleibt trotzdem möglich
+      inner = `<input type="${f.type || 'text'}" ${common} value="${val}" ${f.step ? `step="${f.step}"` : ''} ${f.suggestions ? `list="list_${f.key}" autocomplete="off"` : ''} ${req}>`
+        + (f.suggestions ? `<datalist id="list_${f.key}">${f.suggestions.map(s => `<option value="${String(s).replace(/"/g, '&quot;')}">`).join('')}</datalist>` : '');
   }
   return `<div>
       <label class="block text-sm font-medium text-gray-600 mb-1">${f.label}</label>
@@ -444,6 +451,7 @@ async function showSection(name) {
   if (name === 'vieh') await loadViehSection();
   if (name === 'futtermittel') await loadFuttermittelSection();
   if (name === 'weinbau' && WEINBAU_AKTIV) await loadWeinbauSection();
+  if (name === 'imkerei' && IMKEREI_AKTIV) await loadImkereiSection();
   if (name === 'finanzen') await loadFinanzenSection();
   if (name === 'einstellungen') await loadEinstellungenSection();
 }
@@ -460,6 +468,9 @@ window.addEventListener('DOMContentLoaded', () => {
   // Deaktivierte Module aus der Navigation entfernen (Abschnitt bleibt unsichtbar)
   if (!WEINBAU_AKTIV) {
     document.querySelectorAll('[data-modul="weinbau"]').forEach(el => el.remove());
+  }
+  if (!IMKEREI_AKTIV) {
+    document.querySelectorAll('[data-modul="imkerei"]').forEach(el => el.remove());
   }
 
   Auth.init(onSignedIn, onSignedOut);
@@ -622,6 +633,7 @@ const DASH_TILE_SECTIONS = {
   wartung: { section: 'fuhrpark', label: 'Fuhrpark' },
   futter: { section: 'futtermittel', label: 'Futtermittel' },
   keller: { section: 'weinbau', label: 'Weinbau & Keller' },
+  bienen: { section: 'imkerei', label: 'Imkerei' },
   wetter: { section: 'flaechen', label: 'Flächen' }
 };
 
@@ -796,6 +808,8 @@ function openDashTileDetail(id) {
         [{ key: 'Bezeichnung', label: 'Bezeichnung' }, { label: 'Anzahl', format: r => `${r.AnzahlAktuell} Flaschen` }], d.flaschenbestandAktiv,
         { onRowClick: (row) => { detailModal.close(); openFlaschenAustragModal(row); } });
     });
+  } else if (id === 'bienen') {
+    openDashDetailWithSection('Imkerei - offene Aufgaben', id, (inner) => renderImkerAufgabenListe(inner, { nurOffene: true }));
   } else if (id === 'wetter') {
     openDashDetailWithSection('Wetter - Details', id, (inner) => {
       const w = state.wetterDetail;
@@ -951,6 +965,12 @@ async function loadDashboard() {
       ...flaschenbestandAktiv.map(f => drow(`🍾 ${f.Bezeichnung}`, `${f.AnzahlAktuell}`))
     ].join('');
     tiles.push(dashTileHtml({ id: 'keller', icon: lucideIcon('grape'), title: 'Keller', value: `${literGesamt.toFixed(0)} l`, sub: `${flaschenGesamt} Flaschen`, section: 'weinbau', expandable: true, preview: kellerPreview }));
+  }
+
+  // ---- Imkerei: aktive Völker + offene Aufgaben (Aufbau in imkerei.js) ----
+  if (IMKEREI_AKTIV) {
+    const bienenKachel = imkereiDashTile();
+    if (bienenKachel) tiles.push(bienenKachel);
   }
 
   document.getElementById('dashboardGrid').innerHTML = tiles.join('');

@@ -32,6 +32,7 @@
   .traffic-red { background-color: #ef4444; }
   dialog::backdrop { background: rgba(15,23,42,0.55); backdrop-filter: blur(2px); }
   dialog { border: none; }
+  #durchsichtDialog[open] { display: block; }
   .vtab-btn.active-tab { border-color: #166534 !important; color: #166534 !important; }
   @keyframes flaeche-glow {
     0%, 100% { filter: drop-shadow(0 0 2px #2563eb) drop-shadow(0 0 2px #2563eb); }
@@ -180,6 +181,7 @@
       </button>
       <button data-section="futtermittel" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="wheat" class="w-[18px] h-[18px] shrink-0"></i> Futtermittel</button>
       <button data-section="weinbau" data-modul="weinbau" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="grape" class="w-[18px] h-[18px] shrink-0"></i> Weinbau &amp; Keller</button>
+      <button data-section="imkerei" data-modul="imkerei" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="hexagon" class="w-[18px] h-[18px] shrink-0"></i> Imkerei</button>
       <button data-section="finanzen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="wallet" class="w-[18px] h-[18px] shrink-0"></i> Finanzen</button>
       <hr class="my-2">
       <button data-section="einstellungen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="settings" class="w-[18px] h-[18px] shrink-0"></i> Einstellungen</button>
@@ -335,6 +337,37 @@
         <div id="futtermittelTable" class="grid gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
       </section>
 
+      <!-- IMKEREI (Logik in imkerei.js) -->
+      <section id="section-imkerei" data-modul="imkerei" class="app-section hidden space-y-4">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="hexagon" class="w-6 h-6 text-green-700"></i> Imkerei</h2>
+          <div class="flex gap-2 flex-wrap">
+            <button id="btnNeuerBienenstand" class="bg-green-700 text-white px-3 py-2 rounded shadow hover:bg-green-800 text-sm">+ Bienenstand</button>
+            <button id="btnNeuesVolk" class="bg-green-700 text-white px-3 py-2 rounded shadow hover:bg-green-800 text-sm">+ Volk</button>
+          </div>
+        </div>
+        <button id="btnImkerDurchsicht" class="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-white px-6 py-4 rounded-xl shadow text-lg font-semibold">🐝 Durchsicht erfassen</button>
+        <div class="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap">
+          <button id="btnImkerBehandlung" class="bg-white border shadow-sm hover:bg-gray-50 px-3 py-3 rounded-lg text-sm font-medium">💊 Behandlung</button>
+          <button id="btnImkerFuetterung" class="bg-white border shadow-sm hover:bg-gray-50 px-3 py-3 rounded-lg text-sm font-medium">🥣 Fütterung</button>
+          <button id="btnImkerHonigernte" class="bg-white border shadow-sm hover:bg-gray-50 px-3 py-3 rounded-lg text-sm font-medium">🍯 Honigernte</button>
+        </div>
+        <div class="flex gap-2 border-b">
+          <button data-itab="staende" class="itab-btn px-4 py-2 font-medium border-b-2 border-green-700">Stände &amp; Völker</button>
+          <button data-itab="aufgaben" class="itab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Aufgaben <span id="imkerAufgabenBadge"></span></button>
+        </div>
+        <div id="itab-staende" class="itab-panel space-y-4">
+          <div id="bienenstaendeListe" class="grid grid-cols-1 gap-4 lg:grid-cols-2"></div>
+          <div class="pt-4 border-t">
+            <button id="btnVoelkerRegisterToggle" class="text-sm text-gray-600 hover:underline"></button>
+            <div id="voelkerRegister" class="hidden mt-3"></div>
+          </div>
+        </div>
+        <div id="itab-aufgaben" class="itab-panel hidden space-y-3">
+          <div id="imkerAufgabenListe"></div>
+        </div>
+      </section>
+
       <!-- FINANZEN -->
       <section id="section-finanzen" class="app-section hidden space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-3">
@@ -432,11 +465,24 @@
   </div>
 </dialog>
 
+<!-- ===================== DURCHSICHT-ERFASSUNG (Imkerei, Vollbild am Handy) ===================== -->
+<dialog id="durchsichtDialog" class="p-0 m-0 w-full max-w-none h-[100dvh] max-h-none sm:m-auto sm:max-w-xl sm:h-[90dvh] sm:rounded-xl shadow-xl">
+  <div class="flex flex-col h-full">
+    <div class="px-4 py-3 border-b flex items-center justify-between bg-amber-50">
+      <h3 id="durchsichtTitel" class="font-bold text-lg">Durchsicht</h3>
+      <button type="button" id="durchsichtSchliessen" class="text-gray-500 hover:text-gray-800 text-2xl leading-none w-11 h-11" aria-label="Schließen">✕</button>
+    </div>
+    <div id="durchsichtBody" class="flex-1 overflow-y-auto px-4 py-4"></div>
+    <div id="durchsichtFooter" class="px-4 py-3 border-t flex gap-2"></div>
+  </div>
+</dialog>
+
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-4 right-4 max-w-sm bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50"></div>
 
 <script src="config.js"></script>
 <script src="api.js"></script>
 <script src="app.js"></script>
+<script src="imkerei.js"></script>
 </body>
 </html>

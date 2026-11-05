@@ -198,6 +198,63 @@ const ENTITIES = {
   todos: { table: 'todos', felder: {
     ID: 'id', Text: 'text', Prioritaet: 'prioritaet', Erledigt: 'erledigt', Status: 'status',
     ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am'
+  }, bool: ['erledigt'] },
+
+  // ---- IMKEREI (backend/IMKEREI_SETUP.sql) ----
+  bienenstaende: { table: 'bienenstaende', felder: {
+    ID: 'id', Name: 'name', Standort: 'standort', Lat: 'lat', Lng: 'lng', FotoURL: 'foto_url',
+    Notiz: 'notiz', ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am', Aktiv: 'aktiv'
+  }, bool: ['aktiv'] },
+  voelker: { table: 'voelker', felder: {
+    ID: 'id', BienenstandID: 'bienenstand_id', Nummer: 'nummer', Name: 'name', Beutentyp: 'beutentyp',
+    Status: 'status', Herkunft: 'herkunft', MuttervolkID: 'muttervolk_id', Eingangsdatum: 'eingangsdatum',
+    Abgangsdatum: 'abgangsdatum', QRCode: 'qr_code', FotoURL: 'foto_url', Notiz: 'notiz',
+    ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am', Aktiv: 'aktiv'
+  }, bool: ['aktiv'] },
+  voelkerereignisse: { table: 'voelker_ereignisse', felder: {
+    ID: 'id', VolkID: 'volk_id', Datum: 'datum', Typ: 'typ', PartnerVolkID: 'partner_volk_id',
+    VonBienenstandID: 'von_bienenstand_id', NachBienenstandID: 'nach_bienenstand_id', Grund: 'grund',
+    Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  koeniginnen: { table: 'koeniginnen', felder: {
+    ID: 'id', VolkID: 'volk_id', Jahrgang: 'jahrgang', Farbe: 'farbe', Zeichnung: 'zeichnung',
+    Herkunft: 'herkunft', EingesetztAm: 'eingesetzt_am', Sanftmut: 'sanftmut', Wabensitz: 'wabensitz',
+    Schwarmneigung: 'schwarmneigung', Leistung: 'leistung', Aktuell: 'aktuell', Notiz: 'notiz',
+    ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am'
+  }, bool: ['aktuell'] },
+  durchsichten: { table: 'durchsichten', felder: {
+    ID: 'id', Datum: 'datum', Wetter: 'wetter', TemperaturC: 'temperatur_c', Notiz: 'notiz',
+    ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  durchsichtvoelker: { table: 'durchsicht_voelker', felder: {
+    ID: 'id', DurchsichtID: 'durchsicht_id', VolkID: 'volk_id', Brutwaben: 'brutwaben',
+    KoeniginGesehen: 'koenigin_gesehen', Stifte: 'stifte', Weiselzellen: 'weiselzellen',
+    Futterwaben: 'futterwaben', Volksstaerke: 'volksstaerke', Sanftmut: 'sanftmut', Notiz: 'notiz'
+  }, bool: ['koenigin_gesehen', 'stifte'] },
+  behandlungen: { table: 'behandlungen', felder: {
+    ID: 'id', VolkID: 'volk_id', Datum: 'datum', DatumBis: 'datum_bis', Mittel: 'mittel',
+    Wirkstoff: 'wirkstoff', Chargennummer: 'chargennummer', Menge: 'menge', Einheit: 'einheit',
+    Methode: 'methode', WartezeitTage: 'wartezeit_tage', Bezugsquelle: 'bezugsquelle', Tierarzt: 'tierarzt',
+    SammelID: 'sammel_id', Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  fuetterungen: { table: 'fuetterungen', felder: {
+    ID: 'id', VolkID: 'volk_id', Datum: 'datum', Futterart: 'futterart', Menge: 'menge', Einheit: 'einheit',
+    SammelID: 'sammel_id', Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  varroakontrollen: { table: 'varroa_kontrollen', felder: {
+    ID: 'id', VolkID: 'volk_id', Datum: 'datum', Methode: 'methode', MilbenAnzahl: 'milben_anzahl',
+    ZeitraumTage: 'zeitraum_tage', Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  honigernten: { table: 'honigernten', felder: {
+    ID: 'id', Datum: 'datum', Sorte: 'sorte', MengeKg: 'menge_kg', Wassergehalt: 'wassergehalt',
+    Losnummer: 'losnummer', Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
+  honigerntevoelker: { table: 'honigernte_voelker', felder: {
+    ID: 'id', HonigernteID: 'honigernte_id', VolkID: 'volk_id', MengeKg: 'menge_kg'
+  } },
+  bienenaufgaben: { table: 'bienen_aufgaben', felder: {
+    ID: 'id', VolkID: 'volk_id', BienenstandID: 'bienenstand_id', Titel: 'titel', FaelligAm: 'faellig_am',
+    Erledigt: 'erledigt', ErledigtAm: 'erledigt_am', Notiz: 'notiz', ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am'
   }, bool: ['erledigt'] }
 };
 
@@ -669,7 +726,7 @@ const Api = {
   },
 
   async uploadFile(file, category) {
-    const KATEGORIE_ORDNER = { tier: 'Tiere', maschine: 'Maschinen', flasche: 'Flaschen' };
+    const KATEGORIE_ORDNER = { tier: 'Tiere', maschine: 'Maschinen', flasche: 'Flaschen', imkerei: 'Imkerei' };
     const ordner = KATEGORIE_ORDNER[category] || 'Sonstiges';
     const ext = (file.name.split('.').pop() || 'dat').toLowerCase();
     const path = `${ordner}/${crypto.randomUUID()}.${ext}`;
