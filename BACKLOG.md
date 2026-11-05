@@ -30,6 +30,9 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
   - Offen: reine Einkaufsliste (was fehlt / was ist zu besorgen) oder auch Bestand
     und Kosten, die in die Finanzen einfließen?
 
+- [x] **Förderungen & sonstige Einnahmen** in Finanzen (Beiträge vom Land, Weideinteressentschaft …)
+  – `backend/NACHTRAG_SONSTIGE_EINNAHMEN.sql`
+
 ## Sonstiges
 
 - [ ] Direkte Links zu Fotos/Belegen schützen (Speicher privat + signierte Links) – optional

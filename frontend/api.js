@@ -153,6 +153,10 @@ const ENTITIES = {
     ID: 'id', Datum: 'datum', Kategorie: 'kategorie', MengeLiter: 'menge_liter', Betrag: 'betrag',
     Beschreibung: 'beschreibung', BelegURL: 'beleg_url', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
   } },
+  sonstigeeinnahmen: { table: 'sonstige_einnahmen', felder: {
+    ID: 'id', Datum: 'datum', Kategorie: 'kategorie', Betrag: 'betrag', Beschreibung: 'beschreibung',
+    BelegURL: 'beleg_url', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
+  } },
   erntevermarktung: { table: 'erntevermarktung', felder: {
     ID: 'id', Datum: 'datum', Kategorie: 'kategorie', Menge: 'menge', Einheit: 'einheit',
     Erloes: 'erloes', PreisJeEinheit: 'preis_je_einheit', Beschreibung: 'beschreibung', FlaschenbewegungID: 'flaschenbewegung_id',
@@ -729,7 +733,7 @@ const Api = {
   },
 
   async uploadFile(file, category) {
-    const KATEGORIE_ORDNER = { tier: 'Tiere', maschine: 'Maschinen', flasche: 'Flaschen', imkerei: 'Imkerei' };
+    const KATEGORIE_ORDNER = { tier: 'Tiere', maschine: 'Maschinen', flasche: 'Flaschen', imkerei: 'Imkerei', einnahme: 'Einnahmen' };
     const ordner = KATEGORIE_ORDNER[category] || 'Sonstiges';
     const ext = (file.name.split('.').pop() || 'dat').toLowerCase();
     const path = `${ordner}/${crypto.randomUUID()}.${ext}`;

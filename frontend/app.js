@@ -26,6 +26,7 @@ const state = {
   wartungsintervalle: [],
   maschinenkosten: [],
   allgemeinekosten: [],
+  sonstigeeinnahmen: [],
   erntevermarktung: [],
   tiere: [],
   zuchtereignisse: [],
@@ -3845,6 +3846,13 @@ async function loadFinanzenSection() {
     maschinen: { action: 'maschinen.list' },
     tiere: { action: 'tiere.list' }
   });
+  // Eigener Aufruf: fehlt die Tabelle noch (SQL-Nachtrag nicht ausgeführt), bleiben die
+  // übrigen Finanzen trotzdem benutzbar.
+  try {
+    state.sonstigeeinnahmen = await cachedList('sonstigeeinnahmen.list');
+  } catch (e) {
+    state.sonstigeeinnahmen = [];
+  }
   state.maschinenkosten = maschinenkosten;
   state.tierkosten = tierkosten;
   state.tiererloese = tiererloese;
@@ -3863,6 +3871,7 @@ async function loadFinanzenSection() {
 
   document.getElementById('btnNeueAllgemeineKosten').onclick = () => openAllgemeineKostenModal();
   document.getElementById('btnNeueErntevermarktung').onclick = () => openErntevermarktungModal();
+  document.getElementById('btnNeueSonstigeEinnahme').onclick = () => openSonstigeEinnahmeModal();
 }
 
 function populateErntevermarktungKategorieFilter() {
@@ -3894,13 +3903,14 @@ function renderFinanzen() {
   const tierErloeseJahr = state.tiererloese.filter(inJahr);
   const allgemeineKostenJahr = state.allgemeinekosten.filter(inJahr);
   const erntevermarktungJahr = state.erntevermarktung.filter(inJahr);
+  const sonstigeEinnahmenJahr = state.sonstigeeinnahmen.filter(inJahr);
 
   const anschaffungSumme = mitAnschaffung
     ? state.maschinen.filter(m => jahrVon(m.Anschaffungsdatum) === jahr).reduce((s, m) => s + Number(m.Anschaffungspreis || 0), 0)
     : 0;
 
   const kostenGesamt = sum(maschinenKostenJahr) + sum(tierKostenJahr) + sum(allgemeineKostenJahr) + anschaffungSumme;
-  const erloeseGesamt = sum(tierErloeseJahr) + sum(erntevermarktungJahr, 'Erloes');
+  const erloeseGesamt = sum(tierErloeseJahr) + sum(erntevermarktungJahr, 'Erloes') + sum(sonstigeEinnahmenJahr);
 
   document.getElementById('finanzenCards').innerHTML = `
     <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Kosten ${jahr}${mitAnschaffung ? ' (inkl. Anschaffungen)' : ''}</div><div class="text-xl font-bold text-red-700">${euro(kostenGesamt)}</div></div>
@@ -3914,7 +3924,8 @@ function renderFinanzen() {
   ];
   if (mitAnschaffung) bars.push(['Maschinen-Anschaffungen', anschaffungSumme, 'bg-red-700', 'anschaffungen']);
   bars.push(['Tiererlöse', sum(tierErloeseJahr), 'bg-green-500', 'tiererloese']);
-  bars.push(['Erntevermarktung', sum(erntevermarktungJahr, 'Erloes'), 'bg-green-400', 'erntevermarktung']);
+  bars.push(['Erntevermarktung & Verkäufe', sum(erntevermarktungJahr, 'Erloes'), 'bg-green-400', 'erntevermarktung']);
+  bars.push(['Förderungen & sonstige Einnahmen', sum(sonstigeEinnahmenJahr), 'bg-emerald-300', 'sonstigeeinnahmen']);
 
   const max = Math.max(...bars.map(b => b[1]), 1);
   // Jeder Balken ist anklickbar - zeigt die volle, bearbeitbare Liste der Einzelposten,
@@ -3948,6 +3959,18 @@ function renderFinanzen() {
     {
       onEdit: (row) => openAllgemeinekostenBearbeitenModal(row, async () => await loadFinanzenSection()),
       onDelete: async (row) => { await safeCall('allgemeinekosten.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('allgemeinekosten.list', row.ID); await loadFinanzenSection(); }
+    });
+
+  renderTable(document.getElementById('sonstigeEinnahmenTable'),
+    [
+      { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
+      { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
+      { label: 'Beleg', format: r => r.BelegURL ? `<a href="${r.BelegURL}" target="_blank" class="text-blue-600 underline">Öffnen</a>` : '' }
+    ],
+    [...state.sonstigeeinnahmen].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
+    {
+      onEdit: (row) => openSonstigeEinnahmeModal(row, async () => await loadFinanzenSection()),
+      onDelete: async (row) => { await safeCall('sonstigeeinnahmen.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('sonstigeeinnahmen.list', row.ID); await loadFinanzenSection(); }
     });
 
   const kategorieFilter = document.getElementById('erntevermarktungKategorieFilter').value;
@@ -4142,13 +4165,21 @@ function openFinanzenBarDetail(kategorie) {
       bearbeiten: openTiererloeseBearbeitenModal
     },
     erntevermarktung: {
-      titel: 'Erntevermarktung', liste: () => state.erntevermarktung.filter(inJahr),
+      titel: 'Erntevermarktung & Verkäufe', liste: () => state.erntevermarktung.filter(inJahr),
       spalten: [
         { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
-        { label: 'Menge', format: r => `${r.Menge || ''} ${r.Einheit || ''}` },
+        { label: 'Menge', format: r => mengeMitPreis(r) },
         { label: 'Erlös', format: r => euro(r.Erloes) }, { key: 'Beschreibung', label: 'Beschreibung' }
       ],
       bearbeiten: openErntevermarktungBearbeitenModal
+    },
+    sonstigeeinnahmen: {
+      titel: 'Förderungen & sonstige Einnahmen', liste: () => state.sonstigeeinnahmen.filter(inJahr),
+      spalten: [
+        { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
+        { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' }
+      ],
+      bearbeiten: openSonstigeEinnahmeModal
     }
   };
 
@@ -4181,6 +4212,43 @@ function openAllgemeineKostenModal() {
       cacheUpsert('allgemeinekosten.list', saved);
       await loadFinanzenSection();
     }
+  });
+}
+
+// ---- Förderungen & sonstige Einnahmen (Beiträge vom Land, Weideinteressentschaft ...) ----
+const SONSTIGE_EINNAHMEN_KATEGORIEN = ['Förderung Land', 'EU-Prämie', 'Weideinteressentschaft', 'Alpungsprämie', 'Pacht/Miete', 'Sonstiges'];
+
+function openSonstigeEinnahmeModal(initial = {}, reload = null) {
+  const bearbeiten = !!initial.ID;
+  const bisherige = [...new Set(state.sonstigeeinnahmen.map(r => r.Kategorie).filter(Boolean))];
+  openFormModal({
+    title: bearbeiten ? 'Einnahme bearbeiten' : 'Förderung / sonstige Einnahme erfassen',
+    fields: [
+      { key: 'Datum', label: 'Datum', type: 'date', required: true },
+      { key: 'Kategorie', label: 'Kategorie', required: true, suggestions: [...new Set(SONSTIGE_EINNAHMEN_KATEGORIEN.concat(bisherige))],
+        help: 'Vorschlag antippen oder eigene Kategorie eintippen.' },
+      { key: 'Betrag', label: 'Betrag (€)', type: 'number', step: '0.01', required: true },
+      { key: 'Beschreibung', label: 'Beschreibung', help: 'z. B. „Flächenprämie 2026“, „Auszahlung Weideinteressentschaft“' },
+      { key: 'Beleg', label: initial.BelegURL ? 'Beleg ersetzen' : 'Beleg (Foto/PDF)', type: 'file', accept: 'image/*,.pdf' }
+    ],
+    initial: bearbeiten ? initial : { Datum: new Date().toLocaleDateString('sv-SE') }, // JJJJ-MM-TT in Ortszeit
+    onSubmit: async (values) => {
+      const payload = { ...values };
+      delete payload.Beleg;
+      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'einnahme'); payload.BelegURL = up.url; }
+      const saved = bearbeiten
+        ? await safeCall('sonstigeeinnahmen.update', { id: initial.ID, ...payload }, 'Aktualisiert.')
+        : await safeCall('sonstigeeinnahmen.create', payload, 'Einnahme erfasst.');
+      cacheUpsert('sonstigeeinnahmen.list', saved);
+      if (reload) await reload();
+      await loadFinanzenSection();
+    },
+    onDelete: bearbeiten ? async () => {
+      await safeCall('sonstigeeinnahmen.delete', { id: initial.ID }, 'Gelöscht.');
+      cacheRemove('sonstigeeinnahmen.list', initial.ID);
+      if (reload) await reload();
+      await loadFinanzenSection();
+    } : null
   });
 }
 

@@ -212,6 +212,12 @@ create table public.allgemeine_kosten (
   erfasst_von text, erfasst_am timestamptz default now()
 );
 
+create table public.sonstige_einnahmen (
+  id uuid primary key default gen_random_uuid(),
+  datum date, kategorie text, betrag numeric, beschreibung text, beleg_url text,
+  erfasst_von text, erfasst_am timestamptz default now()
+);
+
 create table public.erntevermarktung (
   id uuid primary key default gen_random_uuid(),
   datum date, kategorie text, menge numeric, einheit text, erloes numeric, preis_je_einheit numeric, beschreibung text,
@@ -346,7 +352,7 @@ declare
     'betrieb','flaechen','sub_flaechen','kulturen','fruchtfolge','schnitte','feldarbeiten',
     'duengungen','weinbau_massnahmen','reifemessungen','wein_lese','tanks','keller_logbuch',
     'abfuellungen','flaschenbestand','flaschen_bewegungen','maschinen','betriebsstunden',
-    'wartungs_intervalle','maschinen_kosten','allgemeine_kosten','erntevermarktung','tiere',
+    'wartungs_intervalle','maschinen_kosten','allgemeine_kosten','sonstige_einnahmen','erntevermarktung','tiere',
     'zuchtereignisse','tier_kosten','tier_erloese','tierbestand','tierbestand_bewegungen',
     'futtermittel','futtermittel_bewegungen','todos','aktivitaets_log'
   ];
