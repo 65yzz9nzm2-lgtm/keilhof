@@ -368,8 +368,8 @@ on conflict (id) do nothing;
 
 create policy "aktive nutzer laden hoch" on storage.objects for insert
   with check (bucket_id = 'hof-management' and public.is_active_user());
-create policy "jeder liest oeffentliche dateien" on storage.objects for select
-  using (bucket_id = 'hof-management');
+create policy "aktive nutzer lesen dateien" on storage.objects for select
+  using (bucket_id = 'hof-management' and public.is_active_user());
 create policy "aktive nutzer loeschen eigene dateien" on storage.objects for delete
   using (bucket_id = 'hof-management' and public.is_active_user());
 

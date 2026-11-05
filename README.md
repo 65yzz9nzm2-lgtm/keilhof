@@ -62,5 +62,8 @@ Zugriffsregeln in der Datenbank (nur freigeschaltete Benutzer sehen etwas).
 ```
 frontend/            die App (index.html, app.js, api.js, config.js …)
 backend/
-  KEILHOF_SETUP.sql  einziges Skript für die neue Datenbank
+  KEILHOF_SETUP.sql  Grund-Setup für die neue Datenbank
+  IMKEREI_SETUP.sql  Zusatz: Tabellen für das Modul Imkerei (nach dem Grund-Setup ausführen)
+  FIX_DATEIEN_SCHUETZEN.sql  Nachtrag: Dateiliste nur für freigeschaltete Nutzer (nur nötig,
+                     wenn KEILHOF_SETUP.sql vor dem 05.11.2026 ausgeführt wurde)
 ```
