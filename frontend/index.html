@@ -33,6 +33,10 @@
   dialog::backdrop { background: rgba(15,23,42,0.55); backdrop-filter: blur(2px); }
   dialog { border: none; }
   #durchsichtDialog[open] { display: block; }
+  /* Safari (iPad/iPhone) gibt Datumsfeldern eine feste Mindestbreite - ohne das ragen
+     sie in schmalen Spalten über den Rand hinaus. */
+  input[type="date"] { min-width: 0; max-width: 100%; -webkit-appearance: none; appearance: none; }
+  .grid > label, .grid > div { min-width: 0; }
   /* Drucken/PDF: nur den vorbereiteten Druckbereich ausgeben */
   #druckBereich { display: none; }
   @media print {
