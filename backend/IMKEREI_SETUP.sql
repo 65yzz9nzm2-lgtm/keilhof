@@ -6,6 +6,9 @@
 -- Das Skript darf auch mehrfach laufen: bestehende Tabellen bleiben unverändert.
 -- ============================================================================
 
+-- Eigener Betriebskodex für die Imkerei (Einstellungen -> Betrieb)
+alter table public.betrieb add column if not exists betriebskodex_imkerei text;
+
 -- ============================================================================
 -- BIENENSTÄNDE
 -- ============================================================================

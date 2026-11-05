@@ -4184,13 +4184,15 @@ async function loadEinstellungenSection() {
 
   document.getElementById('betriebForm').innerHTML = [
     { key: 'HofName', label: 'Hofname' }, { key: 'Adresse', label: 'Adresse' },
-    { key: 'Betriebsnummer', label: 'Betriebsnummer' }, { key: 'Ansprechpartner', label: 'Ansprechpartner' },
+    { key: 'Betriebsnummer', label: 'Betriebskodex Hof (Betriebsnummer)' },
+    ...(IMKEREI_AKTIV ? [{ key: 'BetriebskodexImkerei', label: 'Betriebskodex Imkerei' }] : []),
+    { key: 'Ansprechpartner', label: 'Ansprechpartner' },
     { key: 'ErinnerungWochenVorher', label: 'Zuchtkalender-Erinnerung (Wochen vorher)', type: 'number', help: 'Wie viele Wochen vor Trockenstellen/Abkalbung die Erinnerungsbox in der Viehhaltung erscheinen soll. Standard: 4 Wochen.' }
   ].map(f => fieldHtml(f, (betrieb || {})[f.key])).join('');
 
   document.getElementById('btnBetriebSpeichern').onclick = async () => {
     const payload = {};
-    ['HofName', 'Adresse', 'Betriebsnummer', 'Ansprechpartner', 'ErinnerungWochenVorher'].forEach(k => {
+    ['HofName', 'Adresse', 'Betriebsnummer', 'BetriebskodexImkerei', 'Ansprechpartner', 'ErinnerungWochenVorher'].forEach(k => {
       const el = document.getElementById('field_' + k);
       if (el) payload[k] = el.value;
     });

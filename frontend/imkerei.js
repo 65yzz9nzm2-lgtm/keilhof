@@ -259,6 +259,13 @@ function volkZeileHtml(v) {
 }
 
 function renderImkereiSection() {
+  const kodex = state.betrieb && state.betrieb.BetriebskodexImkerei;
+  document.getElementById('imkerBetriebskodex').innerHTML = kodex
+    ? `Betriebskodex Imkerei: <b>${esc(kodex)}</b>`
+    : `<button type="button" id="btnImkerKodexFehlt" class="text-amber-700 underline">Betriebskodex Imkerei eintragen</button>`;
+  const kodexLink = document.getElementById('btnImkerKodexFehlt');
+  if (kodexLink) kodexLink.onclick = () => showSection('einstellungen');
+
   const container = document.getElementById('bienenstaendeListe');
   const staende = aktiveStaende().sort((a, b) => String(a.Name).localeCompare(String(b.Name), 'de'));
   const voelker = aktiveVoelker();

@@ -415,6 +415,7 @@ function betriebFromPg(data) {
   return {
     HofName: data.hof_name || '', Adresse: data.adresse || '', Betriebsnummer: data.betriebsnummer || '',
     Ansprechpartner: data.ansprechpartner || '',
+    BetriebskodexImkerei: data.betriebskodex_imkerei || '',
     ErinnerungWochenVorher: data.erinnerung_wochen_vorher === null || data.erinnerung_wochen_vorher === undefined ? '' : data.erinnerung_wochen_vorher,
     AktualisiertAm: data.aktualisiert_am || ''
   };
@@ -434,6 +435,8 @@ async function betriebUpdateFn(payload) {
       ? null : Number(payload.ErinnerungWochenVorher),
     aktualisiert_am: new Date().toISOString()
   };
+  // Spalte gibt es erst mit backend/IMKEREI_SETUP.sql - nur mitschicken, wenn das Feld angezeigt wurde
+  if (payload.BetriebskodexImkerei !== undefined) row.betriebskodex_imkerei = payload.BetriebskodexImkerei || null;
   const { data, error } = await supabaseClient.from('betrieb').update(row).eq('id', 1).select().single();
   if (error) throw new Error(error.message);
   return betriebFromPg(data);
