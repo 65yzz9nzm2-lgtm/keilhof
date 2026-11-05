@@ -3789,9 +3789,46 @@ function openAbfuellungModal(tank) {
 // ============================================================================
 // FINANZEN
 // ============================================================================
-const ERNTEVERMARKTUNG_KATEGORIEN = WEINBAU_AKTIV
-  ? ['Heuballen', 'Siloballen', 'Silomais', 'Brennholz', 'Stammholz', 'Trauben', 'Wein', 'Sonstiges']
-  : ['Heuballen', 'Siloballen', 'Silomais', 'Brennholz', 'Stammholz', 'Sonstiges'];
+const ERNTEVERMARKTUNG_KATEGORIEN = ['Heuballen', 'Siloballen', 'Silomais', 'Brennholz', 'Stammholz']
+  .concat(WEINBAU_AKTIV ? ['Trauben', 'Wein'] : [])
+  .concat(IMKEREI_AKTIV ? ['Honig'] : [])
+  .concat(['Sonstiges']);
+
+// Felder für Verkaufs-Einträge (neu + bearbeiten): Erlös wird aus Menge × Preis je
+// Einheit vorgeschlagen, bleibt aber frei überschreibbar (z.B. Rabatt, Pauschale).
+function erntevermarktungFelder() {
+  return [
+    { key: 'Datum', label: 'Datum', type: 'date', required: true },
+    { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ERNTEVERMARKTUNG_KATEGORIEN },
+    { key: 'Menge', label: 'Menge', type: 'number', step: 'any' },
+    { key: 'Einheit', label: 'Einheit', type: 'select', options: ['Ballen', 'Tonnen', 'Festmeter', 'Raummeter', 'kg', 'Liter', 'Stück'] },
+    { key: 'PreisJeEinheit', label: 'Preis je Einheit (€)', type: 'number', step: '0.01', help: 'z. B. Preis pro kg Honig - der Erlös wird daraus automatisch berechnet.' },
+    { key: 'Erloes', label: 'Erlös (€)', type: 'number', step: '0.01', required: true },
+    { key: 'Beschreibung', label: 'Beschreibung', help: 'z. B. Käufer, Losnummer' }
+  ];
+}
+
+function verbindeErloesBerechnung() {
+  const menge = document.getElementById('field_Menge');
+  const preis = document.getElementById('field_PreisJeEinheit');
+  const erloes = document.getElementById('field_Erloes');
+  const kategorie = document.getElementById('field_Kategorie');
+  const einheit = document.getElementById('field_Einheit');
+  const rechne = () => {
+    const m = parseFloat(menge.value), p = parseFloat(preis.value);
+    if (!isNaN(m) && !isNaN(p)) erloes.value = (m * p).toFixed(2);
+  };
+  menge.addEventListener('input', rechne);
+  preis.addEventListener('input', rechne);
+  // Honig wird in kg verkauft
+  kategorie.addEventListener('change', () => { if (kategorie.value === 'Honig') einheit.value = 'kg'; });
+}
+
+function mengeMitPreis(r) {
+  const menge = `${r.Menge || ''} ${r.Einheit || ''}`.trim();
+  return r.PreisJeEinheit !== '' && r.PreisJeEinheit !== undefined && r.PreisJeEinheit !== null
+    ? `${menge} à ${euro(r.PreisJeEinheit)}` : menge;
+}
 
 function jahrVon(datum) {
   const d = new Date(datum);
@@ -3920,7 +3957,7 @@ function renderFinanzen() {
   renderTable(document.getElementById('erntevermarktungTable'),
     [
       { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
-      { label: 'Menge', format: r => `${r.Menge || ''} ${r.Einheit || ''}` },
+      { label: 'Menge', format: r => mengeMitPreis(r) },
       { label: 'Erlös', format: r => euro(r.Erloes) }, { key: 'Beschreibung', label: 'Beschreibung' }
     ],
     [...erntevermarktungGefiltert].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
@@ -4031,15 +4068,8 @@ function openAllgemeinekostenBearbeitenModal(initial, reload) {
 
 function openErntevermarktungBearbeitenModal(initial, reload) {
   openFormModal({
-    title: 'Erntevermarktung bearbeiten',
-    fields: [
-      { key: 'Datum', label: 'Datum', type: 'date', required: true },
-      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ERNTEVERMARKTUNG_KATEGORIEN },
-      { key: 'Menge', label: 'Menge', type: 'number', step: '0.1' },
-      { key: 'Einheit', label: 'Einheit', type: 'select', options: ['Ballen', 'Tonnen', 'Festmeter', 'Raummeter', 'kg', 'Liter'] },
-      { key: 'Erloes', label: 'Erlös (€)', type: 'number', step: '0.01', required: true },
-      { key: 'Beschreibung', label: 'Beschreibung' }
-    ],
+    title: 'Verkauf bearbeiten',
+    fields: erntevermarktungFelder(),
     initial,
     onSubmit: async (values) => {
       const saved = await safeCall('erntevermarktung.update', { id: initial.ID, ...values }, 'Aktualisiert.');
@@ -4053,6 +4083,7 @@ function openErntevermarktungBearbeitenModal(initial, reload) {
       await loadFinanzenSection();
     }
   });
+  verbindeErloesBerechnung();
 }
 
 function openFinanzenBarDetail(kategorie) {
@@ -4153,23 +4184,18 @@ function openAllgemeineKostenModal() {
   });
 }
 
-function openErntevermarktungModal() {
+function openErntevermarktungModal(vorbelegung = {}, nachSpeichern = null) {
   openFormModal({
-    title: 'Ernte-/Holz-/Weinverkauf erfassen',
-    fields: [
-      { key: 'Datum', label: 'Datum', type: 'date', required: true },
-      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ERNTEVERMARKTUNG_KATEGORIEN },
-      { key: 'Menge', label: 'Menge', type: 'number', step: '0.1' },
-      { key: 'Einheit', label: 'Einheit', type: 'select', options: ['Ballen', 'Tonnen', 'Festmeter', 'Raummeter', 'kg', 'Liter'] },
-      { key: 'Erloes', label: 'Erlös (€)', type: 'number', step: '0.01', required: true },
-      { key: 'Beschreibung', label: 'Beschreibung' }
-    ],
+    title: 'Verkauf erfassen',
+    fields: erntevermarktungFelder(),
+    initial: vorbelegung,
     onSubmit: async (values) => {
       const saved = await safeCall('erntevermarktung.create', values, 'Verkauf erfasst.');
       cacheUpsert('erntevermarktung.list', saved);
-      await loadFinanzenSection();
+      if (nachSpeichern) await nachSpeichern(saved); else await loadFinanzenSection();
     }
   });
+  verbindeErloesBerechnung();
 }
 
 // ============================================================================

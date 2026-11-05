@@ -222,6 +222,7 @@ if (IMKEREI_AKTIV) {
       x.classList.toggle('text-gray-500', !aktiv);
     });
     document.querySelectorAll('.itab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'itab-' + b.dataset.itab));
+    if (b.dataset.itab === 'auswertung') renderImkerAuswertung();
   }));
 
   document.getElementById('btnNeuerBienenstand').onclick = () => openBienenstandModal();
@@ -321,6 +322,7 @@ function renderImkereiSection() {
   document.getElementById('imkerAufgabenBadge').innerHTML = offen.length
     ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded-full ${ueberfaellig ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}">${offen.length}</span>` : '';
   renderImkerAufgabenListe(document.getElementById('imkerAufgabenListe'), { mitErledigten: true });
+  if (!document.getElementById('itab-auswertung').classList.contains('hidden')) renderImkerAuswertung();
 
 }
 
@@ -1581,4 +1583,312 @@ if (IMKEREI_AKTIV) {
   document.getElementById('durchsichtSchliessen').onclick = durchsichtAbbrechen;
   // ESC / Zurück-Geste soll die Durchsicht nicht unbemerkt schließen
   durchsichtDialog.addEventListener('cancel', (e) => { e.preventDefault(); durchsichtAbbrechen(); });
+}
+
+// ============================================================================
+// AUSWERTUNGEN & EXPORT (Reiter "Auswertungen")
+// ============================================================================
+
+// ---- Spalten des Behandlungs-Exports (PDF/Druck + CSV): HIER anpassen ----
+// Reihenfolge hier = Reihenfolge im Export. Spalte entfernen = Zeile löschen,
+// neue Spalte = Zeile mit Titel und Wert ergänzen. Welche Angaben verpflichtend
+// sind, klärt der Betrieb noch mit Tierarzt bzw. Imkerbund.
+// wert(behandlung, zusatz) - zusatz enthält { stand, volk } zum Behandlungsdatum.
+const BEHANDLUNG_EXPORT_SPALTEN = [
+  { titel: 'Beginn', wert: (b) => fmtDate(b.Datum) },
+  { titel: 'Ende', wert: (b) => fmtDate(b.DatumBis) },
+  { titel: 'Bienenstand', wert: (b, x) => x.stand },
+  { titel: 'Volk', wert: (b, x) => x.volk },
+  { titel: 'Mittel', wert: (b) => b.Mittel },
+  { titel: 'Wirkstoff', wert: (b) => b.Wirkstoff },
+  { titel: 'Charge', wert: (b) => b.Chargennummer },
+  { titel: 'Menge', wert: (b) => (b.Menge !== '' ? `${zahl(b.Menge, 2)} ${b.Einheit || ''}`.trim() : '') },
+  { titel: 'Methode', wert: (b) => b.Methode },
+  { titel: 'Wartezeit (Tage)', wert: (b) => b.WartezeitTage },
+  { titel: 'Bezugsquelle', wert: (b) => b.Bezugsquelle },
+  { titel: 'Tierarzt', wert: (b) => b.Tierarzt },
+  { titel: 'Notiz', wert: (b) => b.Notiz },
+  { titel: 'Erfasst von', wert: (b) => b.ErfasstVon }
+];
+
+const auswertung = { von: `${new Date().getFullYear()}-01-01`, bis: '', stand: '', stichtag: '', honigJahr: String(new Date().getFullYear()) };
+
+// Wo stand ein Volk an einem bestimmten Tag? Aus den Standortwechseln rekonstruiert.
+function standAm(volk, datum) {
+  const wechsel = imker.ereignisse.filter(e => e.VolkID === volk.ID && e.Typ === 'Standortwechsel')
+    .sort((a, b) => String(a.Datum).localeCompare(String(b.Datum)) || datumWert(a.ErfasstAm) - datumWert(b.ErfasstAm));
+  const bisher = wechsel.filter(e => String(e.Datum) <= datum);
+  if (bisher.length) return bisher[bisher.length - 1].NachBienenstandID;
+  const spaeter = wechsel.find(e => String(e.Datum) > datum);
+  if (spaeter) return spaeter.VonBienenstandID;
+  return volk.BienenstandID;
+}
+
+// War ein Volk an diesem Tag im Bestand? Zugang bis einschließlich, Abgang ab dem Abgangstag nicht mehr.
+function volkAktivAm(volk, datum) {
+  if (volk.Aktiv === false) return false;
+  const zugang = volk.Eingangsdatum || String(volk.ErstelltAm || '').slice(0, 10);
+  if (zugang && zugang > datum) return false;
+  if (volk.Abgangsdatum) return volk.Abgangsdatum > datum;
+  return volk.Status === 'Aktiv';
+}
+
+function behandlungenFuerExport() {
+  const von = auswertung.von || '0000-01-01';
+  const bis = auswertung.bis || heuteIso();
+  return imker.behandlungen
+    .filter(b => b.Datum && String(b.Datum) <= bis && String(b.DatumBis || b.Datum) >= von)
+    .map(b => {
+      const volk = volkById(b.VolkID);
+      const standId = volk ? standAm(volk, String(b.Datum)) : '';
+      return { b, standId, zusatz: { stand: standName(standId), volk: volk ? volkLabel(volk) : '' } };
+    })
+    .filter(x => !auswertung.stand || x.standId === auswertung.stand)
+    .sort((a, c) => String(a.b.Datum).localeCompare(String(c.b.Datum)) || a.zusatz.stand.localeCompare(c.zusatz.stand, 'de')
+      || nachNummer(volkById(a.b.VolkID) || {}, volkById(c.b.VolkID) || {}));
+}
+
+// ---- Druck/PDF: Inhalt in den Druckbereich schreiben und Druckdialog öffnen ----
+function druckKopf(titel, zeilen) {
+  const b = state.betrieb || {};
+  const betrieb = [b.HofName, b.Adresse].filter(Boolean).map(esc).join(' · ');
+  const kodex = [b.Betriebsnummer ? `Betriebskodex Hof: ${esc(b.Betriebsnummer)}` : '', b.BetriebskodexImkerei ? `Betriebskodex Imkerei: ${esc(b.BetriebskodexImkerei)}` : '']
+    .filter(Boolean).join(' · ');
+  return `<h1>${esc(titel)}</h1>
+    <div class="dk-meta">${betrieb}${kodex ? '<br>' + kodex : ''}${zeilen.length ? '<br>' + zeilen.join('<br>') : ''}</div>`;
+}
+
+function druckTabelle(kopf, zeilen, fuss) {
+  return `<table><thead><tr>${kopf.map(k => `<th>${esc(k)}</th>`).join('')}</tr></thead>
+    <tbody>${zeilen.map(z => `<tr>${z.map(w => `<td>${esc(w)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${kopf.length}">Keine Einträge.</td></tr>`}</tbody>
+    ${fuss ? `<tfoot><tr>${fuss.map(w => `<td>${esc(w)}</td>`).join('')}</tr></tfoot>` : ''}</table>`;
+}
+
+function drucken(inhalt, { quer = false } = {}) {
+  const bereich = document.getElementById('druckBereich');
+  const user = state.user ? state.user.name : '';
+  bereich.innerHTML = `<style>
+      @page { size: A4 ${quer ? 'landscape' : 'portrait'}; margin: 12mm; }
+      #druckBereich { font-family: Inter, Arial, sans-serif; color: #111; font-size: 9pt; }
+      #druckBereich h1 { font-size: 15pt; margin: 0 0 4px; }
+      #druckBereich h2 { font-size: 11pt; margin: 14px 0 4px; }
+      #druckBereich .dk-meta { font-size: 9pt; color: #333; margin-bottom: 10px; line-height: 1.4; }
+      #druckBereich table { border-collapse: collapse; width: 100%; margin-bottom: 8px; }
+      #druckBereich th, #druckBereich td { border: 1px solid #999; padding: 3px 5px; text-align: left; vertical-align: top; }
+      #druckBereich th { background: #eee; }
+      #druckBereich tfoot td { font-weight: bold; background: #f5f5f5; }
+      #druckBereich tr { page-break-inside: avoid; }
+      #druckBereich .dk-fuss { margin-top: 10px; font-size: 8pt; color: #555; }
+    </style>${inhalt}
+    <div class="dk-fuss">Erstellt am ${fmtDate(new Date())}${user ? ' von ' + esc(user) : ''} mit der Hof-App</div>`;
+  document.body.classList.add('druckmodus');
+  const aufraeumen = () => { document.body.classList.remove('druckmodus'); window.removeEventListener('afterprint', aufraeumen); };
+  window.addEventListener('afterprint', aufraeumen);
+  setTimeout(() => window.print(), 50);
+}
+
+function zeitraumText() {
+  return `Zeitraum: ${fmtDate(auswertung.von) || 'Anfang'} – ${fmtDate(auswertung.bis || heuteIso())}`;
+}
+
+function exportBehandlungen(art) {
+  const daten = behandlungenFuerExport();
+  const kopf = BEHANDLUNG_EXPORT_SPALTEN.map(s => s.titel);
+  const zeilen = daten.map(x => BEHANDLUNG_EXPORT_SPALTEN.map(s => {
+    const w = s.wert(x.b, x.zusatz);
+    return w === undefined || w === null ? '' : String(w);
+  }));
+  const standText = `Bienenstand: ${auswertung.stand ? standName(auswertung.stand) : 'alle'}`;
+  if (art === 'csv') {
+    downloadCsv(`Behandlungen_${auswertung.von || 'Anfang'}_bis_${auswertung.bis || heuteIso()}.csv`, [kopf, ...zeilen]);
+    toast(`${zeilen.length} Behandlungen als CSV heruntergeladen.`);
+    return;
+  }
+  drucken(druckKopf('Behandlungen der Bienenvölker', [zeitraumText(), standText, `${zeilen.length} Einträge`]) + druckTabelle(kopf, zeilen), { quer: true });
+}
+
+function voelkerZumStichtag(datum) {
+  const proStand = {};
+  imker.voelker.filter(v => volkAktivAm(v, datum)).forEach(v => {
+    const s = standAm(v, datum) || '';
+    (proStand[s] = proStand[s] || []).push(v);
+  });
+  // aktive Stände auch mit 0 Völkern aufführen
+  aktiveStaende().forEach(s => { if (!proStand[s.ID]) proStand[s.ID] = []; });
+  return Object.entries(proStand)
+    .map(([standId, voelker]) => ({ standId, name: standName(standId), voelker: voelker.sort(nachNummer) }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'de'));
+}
+
+function exportStichtag(art) {
+  const datum = auswertung.stichtag || heuteIso();
+  const zeilen = voelkerZumStichtag(datum);
+  const summe = zeilen.reduce((n, z) => n + z.voelker.length, 0);
+  const kopf = ['Bienenstand', 'Aktive Völker', 'Völker'];
+  const daten = zeilen.map(z => [z.name, String(z.voelker.length), z.voelker.map(v => v.Nummer).join(', ')]);
+  if (art === 'csv') {
+    downloadCsv(`Voelker_Stichtag_${datum}.csv`, [kopf, ...daten, ['Gesamt', String(summe), '']]);
+    toast('Völkerzahl als CSV heruntergeladen.');
+    return;
+  }
+  drucken(druckKopf('Anzahl aktiver Bienenvölker', [`Stichtag: ${fmtDate(datum)}`]) + druckTabelle(kopf, daten, ['Gesamt', String(summe), '']));
+}
+
+// ---- Honig: Ernte je Jahr/Volk/Stand, Verkäufe aus den Finanzen ----
+// Ist bei einer gemeinsamen Ernte keine Menge je Volk erfasst, wird der Rest der
+// Gesamtmenge gleichmäßig auf die beteiligten Völker verteilt (als "≈" markiert).
+function honigAnteile(ernte) {
+  const links = imker.honigerntevoelker.filter(hv => hv.HonigernteID === ernte.ID);
+  const bekannt = links.filter(hv => hv.MengeKg !== '');
+  const offen = links.filter(hv => hv.MengeKg === '');
+  const rest = Math.max(0, Number(ernte.MengeKg || 0) - bekannt.reduce((s, hv) => s + Number(hv.MengeKg), 0));
+  return links.map(hv => ({
+    volkId: hv.VolkID,
+    kg: hv.MengeKg !== '' ? Number(hv.MengeKg) : (offen.length ? rest / offen.length : 0),
+    geschaetzt: hv.MengeKg === '' && links.length > 1
+  }));
+}
+
+function honigVerkaeufe() {
+  return (listCache['erntevermarktung.list'] || []).filter(r => r.Kategorie === 'Honig');
+}
+
+function honigAuswertung(jahr) {
+  const imJahr = d => String(d || '').slice(0, 4) === String(jahr);
+  const ernten = imker.honigernten.filter(h => imJahr(h.Datum)).sort((a, b) => String(b.Datum).localeCompare(String(a.Datum)));
+  const proVolk = {}, proStand = {};
+  ernten.forEach(h => honigAnteile(h).forEach(a => {
+    const volk = volkById(a.volkId);
+    const standId = volk ? standAm(volk, String(h.Datum)) : '';
+    const pv = proVolk[a.volkId] = proVolk[a.volkId] || { kg: 0, geschaetzt: false, volk };
+    pv.kg += a.kg; pv.geschaetzt = pv.geschaetzt || a.geschaetzt;
+    const ps = proStand[standId] = proStand[standId] || { kg: 0, name: standName(standId) };
+    ps.kg += a.kg;
+  }));
+  const verkaeufe = honigVerkaeufe().filter(r => imJahr(r.Datum)).sort((a, b) => String(b.Datum).localeCompare(String(a.Datum)));
+  const kgVerkauf = verkaeufe.filter(r => r.Einheit === 'kg');
+  const verkauftKg = kgVerkauf.reduce((s, r) => s + Number(r.Menge || 0), 0);
+  const erloes = verkaeufe.reduce((s, r) => s + Number(r.Erloes || 0), 0);
+  const erloesKg = kgVerkauf.reduce((s, r) => s + Number(r.Erloes || 0), 0);
+  // Lager über alle Jahre: alles Geerntete minus alles in kg Verkaufte
+  const geerntetGesamt = imker.honigernten.reduce((s, h) => s + Number(h.MengeKg || 0), 0);
+  const verkauftGesamt = honigVerkaeufe().filter(r => r.Einheit === 'kg').reduce((s, r) => s + Number(r.Menge || 0), 0);
+  return {
+    ernten, verkaeufe,
+    geerntetKg: ernten.reduce((s, h) => s + Number(h.MengeKg || 0), 0),
+    verkauftKg, erloes, preisKg: verkauftKg ? erloesKg / verkauftKg : null,
+    andereEinheiten: verkaeufe.length - kgVerkauf.length,
+    lagerKg: geerntetGesamt - verkauftGesamt,
+    proVolk: Object.values(proVolk).sort((a, b) => b.kg - a.kg),
+    proStand: Object.values(proStand).sort((a, b) => b.kg - a.kg)
+  };
+}
+
+function exportHonig() {
+  const a = honigAuswertung(auswertung.honigJahr);
+  drucken(druckKopf(`Honig ${auswertung.honigJahr}`, [
+    `Geerntet: ${zahl(a.geerntetKg)} kg · Verkauft: ${zahl(a.verkauftKg)} kg · Erlös: ${euro(a.erloes)}${a.preisKg !== null ? ` · Ø ${euro(a.preisKg)}/kg` : ''}`,
+    `Honig auf Lager (rechnerisch, alle Jahre): ${zahl(a.lagerKg)} kg`
+  ])
+    + '<h2>Ernte je Bienenstand</h2>' + druckTabelle(['Bienenstand', 'kg'], a.proStand.map(s => [s.name, zahl(s.kg)]))
+    + '<h2>Ernte je Volk</h2>' + druckTabelle(['Volk', 'kg'], a.proVolk.map(v => [v.volk ? volkLabel(v.volk) : '?', (v.geschaetzt ? '≈ ' : '') + zahl(v.kg)]))
+    + '<h2>Ernten</h2>' + druckTabelle(['Datum', 'Sorte', 'kg', 'Wasser %', 'Los', 'Völker'], a.ernten.map(h => [fmtDate(h.Datum), h.Sorte, zahl(h.MengeKg), zahl(h.Wassergehalt), h.Losnummer,
+      imker.honigerntevoelker.filter(hv => hv.HonigernteID === h.ID).map(hv => (volkById(hv.VolkID) || {}).Nummer).join(', ')]))
+    + '<h2>Verkäufe</h2>' + druckTabelle(['Datum', 'Menge', 'Preis', 'Erlös', 'Beschreibung'], a.verkaeufe.map(r => [fmtDate(r.Datum), `${zahl(r.Menge, 2)} ${r.Einheit || ''}`, r.PreisJeEinheit !== '' ? euro(r.PreisJeEinheit) : '', euro(r.Erloes), r.Beschreibung]))
+    + '<p style="font-size:8pt;color:#555">≈ = gemeinsame Ernte ohne Menge je Volk, gleichmäßig aufgeteilt.</p>');
+}
+
+function openHonigVerkauf() {
+  const letzter = honigVerkaeufe().sort((a, b) => String(b.Datum).localeCompare(String(a.Datum)))[0];
+  openErntevermarktungModal(
+    { Datum: heuteIso(), Kategorie: 'Honig', Einheit: 'kg', PreisJeEinheit: letzter ? letzter.PreisJeEinheit : '' },
+    async () => { imkerNeuZeichnen(); }
+  );
+}
+
+function auswertungKarte(titel, inhalt) {
+  return `<div class="bg-white rounded-xl shadow p-4 space-y-3 min-w-0"><h3 class="font-semibold">${titel}</h3>${inhalt}</div>`;
+}
+
+async function renderImkerAuswertung() {
+  const container = document.getElementById('imkerAuswertung');
+  if (!container) return;
+  await cachedList('erntevermarktung.list');
+  const bis = auswertung.bis || heuteIso();
+  const stichtag = auswertung.stichtag || heuteIso();
+  const behandlungen = behandlungenFuerExport();
+  const stichtagListe = voelkerZumStichtag(stichtag);
+  const stichtagSumme = stichtagListe.reduce((n, z) => n + z.voelker.length, 0);
+  const jahre = [...new Set([String(new Date().getFullYear())]
+    .concat(imker.honigernten.map(h => String(h.Datum).slice(0, 4)))
+    .concat(honigVerkaeufe().map(r => String(r.Datum).slice(0, 4))))].filter(j => /^\d{4}$/.test(j)).sort().reverse();
+  const h = honigAuswertung(auswertung.honigJahr);
+  const knopf = (id, text, farbe = 'bg-gray-700') => `<button type="button" id="${id}" class="${farbe} text-white px-3 py-3 rounded-lg text-sm">${text}</button>`;
+  const kachel = (label, wert, sub = '') => `<div class="bg-gray-50 rounded-lg p-3"><div class="text-xs text-gray-400">${label}</div><div class="font-bold text-lg">${wert}</div>${sub ? `<div class="text-xs text-gray-500">${sub}</div>` : ''}</div>`;
+
+  container.innerHTML = [
+    auswertungKarte('💊 Behandlungen exportieren', `
+      <div class="grid grid-cols-2 gap-2">
+        <label class="text-sm text-gray-600">Von<input type="date" id="awVon" value="${esc(auswertung.von)}" class="w-full border rounded px-3 py-2"></label>
+        <label class="text-sm text-gray-600">Bis<input type="date" id="awBis" value="${esc(bis)}" class="w-full border rounded px-3 py-2"></label>
+        <label class="text-sm text-gray-600 col-span-2">Bienenstand
+          <select id="awStand" class="w-full border rounded px-3 py-2"><option value="">alle Bienenstände</option>
+            ${imker.bienenstaende.map(s => `<option value="${s.ID}" ${auswertung.stand === s.ID ? 'selected' : ''}>${esc(s.Name)}${s.Aktiv === false ? ' (aufgelassen)' : ''}</option>`).join('')}
+          </select></label>
+      </div>
+      <p class="text-sm text-gray-600"><b>${behandlungen.length}</b> Behandlungen im gewählten Zeitraum.</p>
+      <div class="grid grid-cols-2 gap-2">${knopf('awBehDruck', '🖨️ Drucken / PDF', 'bg-green-700')}${knopf('awBehCsv', '⬇️ CSV (Excel)')}</div>
+      <p class="text-xs text-gray-400">Der Bienenstand ergibt sich aus dem Standort des Volkes am Behandlungstag. Die Spalten sind vorläufig und lassen sich leicht anpassen.</p>`),
+
+    auswertungKarte('📅 Aktive Völker zum Stichtag', `
+      <label class="text-sm text-gray-600 block">Stichtag<input type="date" id="awStichtag" value="${esc(stichtag)}" class="w-full border rounded px-3 py-2"></label>
+      <table class="min-w-full text-sm"><thead><tr class="text-left text-gray-500 border-b"><th class="py-2 pr-4">Bienenstand</th><th class="py-2 pr-4">Völker</th><th class="py-2">Nummern</th></tr></thead>
+        <tbody>${stichtagListe.map(z => `<tr class="border-b"><td class="py-2 pr-4">${esc(z.name)}</td><td class="py-2 pr-4 font-semibold">${z.voelker.length}</td><td class="py-2 text-gray-500">${z.voelker.map(v => esc(v.Nummer)).join(', ')}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><td class="py-2 pr-4 font-bold">Gesamt</td><td class="py-2 font-bold">${stichtagSumme}</td><td></td></tr></tfoot></table>
+      <div class="grid grid-cols-2 gap-2">${knopf('awStDruck', '🖨️ Drucken / PDF', 'bg-green-700')}${knopf('awStCsv', '⬇️ CSV (Excel)')}</div>
+      <p class="text-xs text-gray-400">Gezählt werden Völker mit Zugang bis zum Stichtag und ohne Abgang bis dahin, am Standort dieses Tages.</p>`),
+
+    auswertungKarte('🍯 Honig', `
+      <div class="flex items-center gap-2 flex-wrap">
+        <label class="text-sm text-gray-600">Jahr <select id="awHonigJahr" class="border rounded px-3 py-2">${jahre.map(j => `<option ${String(auswertung.honigJahr) === j ? 'selected' : ''}>${j}</option>`).join('')}</select></label>
+        <button type="button" id="awHonigVerkauf" class="ml-auto bg-amber-500 text-white px-3 py-2 rounded-lg text-sm font-medium">+ Honig verkaufen</button>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        ${kachel('Geerntet', `${zahl(h.geerntetKg)} kg`, `${h.ernten.length} Ernten`)}
+        ${kachel('Verkauft', `${zahl(h.verkauftKg)} kg`, h.andereEinheiten ? `+ ${h.andereEinheiten} Verkäufe in anderer Einheit` : `${h.verkaeufe.length} Verkäufe`)}
+        ${kachel('Erlös', euro(h.erloes), h.preisKg !== null ? `Ø ${euro(h.preisKg)} / kg` : '')}
+        ${kachel('Auf Lager', `${zahl(h.lagerKg)} kg`, 'rechnerisch, alle Jahre')}
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-sm">
+        <div><div class="font-semibold mb-1">Je Bienenstand</div>${h.proStand.map(s => `<div class="flex justify-between border-b py-1"><span>${esc(s.name)}</span><b>${zahl(s.kg)} kg</b></div>`).join('') || '<p class="text-gray-400">–</p>'}</div>
+        <div><div class="font-semibold mb-1">Je Volk</div>${h.proVolk.map(v => `<div class="flex justify-between border-b py-1"><span>${esc(v.volk ? volkLabel(v.volk) : '?')}</span><b>${v.geschaetzt ? '≈ ' : ''}${zahl(v.kg)} kg</b></div>`).join('') || '<p class="text-gray-400">–</p>'}</div>
+      </div>
+      ${h.proVolk.some(v => v.geschaetzt) ? '<p class="text-xs text-gray-400">≈ = gemeinsame Ernte ohne Menge je Volk, gleichmäßig aufgeteilt.</p>' : ''}
+      <div class="font-semibold">Ernten</div><div id="awErnten" class="overflow-x-auto"></div>
+      <div class="font-semibold">Verkäufe</div><div id="awVerkaeufe" class="overflow-x-auto"></div>
+      <div class="grid grid-cols-1">${knopf('awHonigDruck', '🖨️ Honig-Übersicht drucken / PDF', 'bg-green-700')}</div>`)
+  ].join('');
+
+  renderTable(document.getElementById('awErnten'), [
+    { label: 'Datum', format: r => fmtDate(r.Datum) }, { label: 'Sorte', format: r => esc(r.Sorte) },
+    { label: 'kg', format: r => zahl(r.MengeKg) }, { label: 'Los', format: r => esc(r.Losnummer) },
+    { label: 'Völker', format: r => imker.honigerntevoelker.filter(hv => hv.HonigernteID === r.ID).map(hv => esc((volkById(hv.VolkID) || {}).Nummer || '?')).join(', ') }
+  ], h.ernten, { onRowClick: (row) => openHonigernteModal({ initial: row }) });
+  renderTable(document.getElementById('awVerkaeufe'), [
+    { label: 'Datum', format: r => fmtDate(r.Datum) }, { label: 'Menge', format: r => mengeMitPreis(r) },
+    { label: 'Erlös', format: r => euro(r.Erloes) }, { label: 'Beschreibung', format: r => esc(r.Beschreibung) }
+  ], h.verkaeufe, { onRowClick: (row) => openErntevermarktungBearbeitenModal(row, async () => { imkerNeuZeichnen(); }) });
+
+  const bei = (id, ereignis, fn) => { const el = document.getElementById(id); if (el) el.addEventListener(ereignis, fn); };
+  bei('awVon', 'change', e => { auswertung.von = e.target.value; renderImkerAuswertung(); });
+  bei('awBis', 'change', e => { auswertung.bis = e.target.value; renderImkerAuswertung(); });
+  bei('awStand', 'change', e => { auswertung.stand = e.target.value; renderImkerAuswertung(); });
+  bei('awStichtag', 'change', e => { auswertung.stichtag = e.target.value; renderImkerAuswertung(); });
+  bei('awHonigJahr', 'change', e => { auswertung.honigJahr = e.target.value; renderImkerAuswertung(); });
+  bei('awBehDruck', 'click', () => exportBehandlungen('druck'));
+  bei('awBehCsv', 'click', () => exportBehandlungen('csv'));
+  bei('awStDruck', 'click', () => exportStichtag('druck'));
+  bei('awStCsv', 'click', () => exportStichtag('csv'));
+  bei('awHonigDruck', 'click', () => exportHonig());
+  bei('awHonigVerkauf', 'click', () => openHonigVerkauf());
 }
