@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-05.2';
+const APP_VERSION = '2026-11-05.3'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -257,7 +257,46 @@ async function fullSync({ silent = false } = {}) {
   }
 }
 
+// ---- Update-Prüfung ---------------------------------------------------------
+// Als Symbol auf dem Home-Bildschirm (iPad/iPhone) wird die App oft nur aus dem
+// Speicher fortgesetzt statt neu geladen - ein Update käme dann nie an. Deshalb
+// fragt die App selbst nach (version.json) und bietet das Neuladen an.
+let _letzteUpdatePruefung = 0;
+
+async function pruefeAufUpdate({ sofortLaden = false } = {}) {
+  if (!navigator.onLine) return false;
+  _letzteUpdatePruefung = Date.now();
+  try {
+    const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
+    if (!res.ok) return false;
+    const { version } = await res.json();
+    if (!version || version === APP_VERSION) return false;
+    if (sofortLaden) { await neueVersionLaden(); return true; }
+    document.getElementById('updateBanner').classList.remove('hidden');
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function neueVersionLaden() {
+  // Service Worker kurz aktualisieren lassen - aber nie länger als 3 Sekunden warten
+  const swUpdate = (async () => {
+    const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (reg) await reg.update();
+  })().catch(() => {});
+  await Promise.race([swUpdate, sleep(3000)]);
+  location.reload();
+}
+
+document.addEventListener('visibilitychange', () => {
+  // beim Zurückkehren in die App, höchstens einmal pro Minute
+  if (document.visibilityState === 'visible' && Date.now() - _letzteUpdatePruefung > 60 * 1000) pruefeAufUpdate();
+});
+
 async function refreshAll() {
+  // "Aktualisieren" lädt bei Bedarf auch gleich die neue App-Version
+  if (await pruefeAufUpdate({ sofortLaden: true })) return;
   await fullSync();
   const aktiveSektion = document.querySelector('.nav-btn.active');
   if (aktiveSektion) await showSection(aktiveSektion.dataset.section);
@@ -483,6 +522,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('signOutBtn').onclick = () => Auth.signOut();
   document.getElementById('btnAktualisieren').onclick = () => refreshAll();
+
+  document.getElementById('btnUpdateLaden').onclick = () => neueVersionLaden();
+  pruefeAufUpdate();
 
   aktualisiereOfflineBanner();
   window.addEventListener('online', aktualisiereOfflineBanner);

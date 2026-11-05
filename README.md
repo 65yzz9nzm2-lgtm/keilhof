@@ -57,6 +57,14 @@ Zugriffsregeln in der Datenbank (nur freigeschaltete Benutzer sehen etwas).
 
 ---
 
+## Updates
+
+Bei jeder Änderung an der App die Versionsnummer an **drei Stellen gleich** erhöhen:
+`frontend/version.json`, `APP_VERSION` in `frontend/app.js` und die `?v=…` an den
+Skripten in `frontend/index.html`. Die App vergleicht ihre Version mit `version.json`
+und zeigt dann „Eine neue Version der App ist verfügbar – Jetzt laden“ (wichtig für
+die App auf dem Home-Bildschirm, die sonst nicht neu lädt).
+
 ## Ordner
 
 ```

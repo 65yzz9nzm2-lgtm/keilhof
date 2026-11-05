@@ -140,6 +140,13 @@
   ⚠️ Offline - zeige den zuletzt gespeicherten Stand
 </div>
 
+<!-- ===================== UPDATE-HINWEIS ===================== -->
+<div id="updateBanner" class="hidden fixed bottom-4 inset-x-4 sm:left-auto sm:right-4 sm:w-96 z-[10001] bg-green-800 text-white rounded-xl shadow-xl p-4 flex items-center gap-3">
+  <span class="text-2xl">✨</span>
+  <span class="flex-1 text-sm">Eine neue Version der App ist verfügbar.</span>
+  <button id="btnUpdateLaden" class="bg-white text-green-800 font-semibold px-4 py-3 rounded-lg text-sm">Jetzt laden</button>
+</div>
+
 <!-- ===================== LADE-OVERLAY ===================== -->
 <div id="loadingOverlay" class="hidden fixed inset-0 bg-white/95 backdrop-blur-sm z-[100] flex flex-col items-center justify-center gap-4">
   <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-700 to-emerald-500 shadow-lg flex items-center justify-center text-white"><i data-lucide="tractor" class="w-7 h-7"></i></div>
@@ -509,9 +516,9 @@
 <div id="toast" class="hidden fixed bottom-4 right-4 max-w-sm bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50"></div>
 
 <!-- ?v= bei jedem Update erhöhen (gleich wie APP_VERSION in app.js), damit nie alte und neue Dateien gemischt werden -->
-<script src="config.js?v=2026-11-05.2"></script>
-<script src="api.js?v=2026-11-05.2"></script>
-<script src="app.js?v=2026-11-05.2"></script>
-<script src="imkerei.js?v=2026-11-05.2"></script>
+<script src="config.js?v=2026-11-05.3"></script>
+<script src="api.js?v=2026-11-05.3"></script>
+<script src="app.js?v=2026-11-05.3"></script>
+<script src="imkerei.js?v=2026-11-05.3"></script>
 </body>
 </html>
