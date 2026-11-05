@@ -1,4 +1,4 @@
-const CACHE_NAME = 'keilhof-v8';
+const CACHE_NAME = 'keilhof-v9';
 const APP_SHELL = [
   './',
   './index.html',
@@ -36,13 +36,19 @@ self.addEventListener('fetch', (event) => {
   // NETZWERK-ZUERST (nicht Cache-zuerst!): Solange die App aktiv weiterentwickelt wird,
   // soll ein Reload IMMER die aktuellste Version laden. Der Cache dient nur noch als
   // Rückfallebene für den Offline-Fall - kein "auf ewig veraltete Dateien"-Risiko mehr.
+  // cache: 'no-cache' = beim Server nachfragen statt eine evtl. bis zu 10 Minuten alte
+  // Kopie aus dem Browser-Puffer zu nehmen (GitHub Pages erlaubt das) - sonst kann nach
+  // einem Update eine Mischung aus alten und neuen Dateien geladen werden.
+  const netz = event.request.method === 'GET'
+    ? fetch(event.request.url, { cache: 'no-cache', credentials: 'same-origin' })
+    : fetch(event.request);
   event.respondWith(
-    fetch(event.request).then((response) => {
+    netz.then((response) => {
       if (response.ok && event.request.method === 'GET') {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
       }
       return response;
-    }).catch(() => caches.match(event.request))
+    }).catch(() => caches.match(event.request, { ignoreSearch: true }))
   );
 });

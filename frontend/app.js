@@ -1,5 +1,9 @@
 'use strict';
 
+// Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
+// Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
+const APP_VERSION = '2026-11-05.2';
+
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
 // Imkerei gibt es erst seit dem Keilhof - fehlt der Eintrag, bleibt das Modul aus.
@@ -465,6 +469,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Dynamisch nachgeladene Inhalte (z.B. Dashboard-Kacheln) rufen das nach dem eigenen
   // Rendern jeweils selbst nochmal auf.
   lucide.createIcons();
+  document.getElementById('appVersionLabel').textContent = APP_VERSION;
 
   // Deaktivierte Module aus der Navigation entfernen (Abschnitt bleibt unsichtbar)
   if (!WEINBAU_AKTIV) {
