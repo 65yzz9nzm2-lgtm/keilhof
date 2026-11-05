@@ -364,23 +364,77 @@ function openBienenstandModal(initial = {}) {
     } : null
   });
 
-  // GPS-Knopf unter den Koordinaten - am Stand selbst ist das die schnellste Eingabe.
+  koordinatenHelferEinbauen();
+}
+
+// Gezeichneter Punkt statt Stecknadel-Bild (braucht keine Bilddatei vom CDN)
+function standPunkt(ll) {
+  return L.circleMarker(ll, { radius: 10, color: '#92400e', weight: 3, fillColor: '#f59e0b', fillOpacity: 1 });
+}
+
+// Unter den Koordinaten-Feldern: GPS übernehmen ODER auf der Karte antippen.
+function koordinatenHelferEinbauen() {
+  const latFeld = document.getElementById('field_Lat');
   const lngFeld = document.getElementById('field_Lng');
-  if (lngFeld && navigator.geolocation) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'mt-2 bg-sky-600 text-white px-3 py-2 rounded text-sm';
-    btn.textContent = '🛰️ Aktuellen Standort übernehmen';
-    btn.onclick = () => {
-      btn.textContent = 'Standort wird ermittelt …';
-      navigator.geolocation.getCurrentPosition((pos) => {
-        document.getElementById('field_Lat').value = pos.coords.latitude.toFixed(6);
-        document.getElementById('field_Lng').value = pos.coords.longitude.toFixed(6);
-        btn.textContent = '✓ Standort übernommen';
-      }, () => { btn.textContent = '🛰️ Standort nicht verfügbar - erneut versuchen'; }, { enableHighAccuracy: true, timeout: 15000 });
+  if (!latFeld || !lngFeld) return;
+
+  const box = document.createElement('div');
+  box.className = 'space-y-2';
+  box.innerHTML = `
+    <div class="grid grid-cols-2 gap-2">
+      <button type="button" class="kh-gps bg-sky-600 text-white px-3 py-3 rounded text-sm">🛰️ Mein Standort</button>
+      <button type="button" class="kh-karte bg-gray-700 text-white px-3 py-3 rounded text-sm">🗺️ Auf Karte wählen</button>
+    </div>
+    <p class="kh-status text-xs text-gray-500"></p>
+    <div class="kh-map hidden rounded-lg border" style="height:260px"></div>`;
+  lngFeld.parentElement.appendChild(box);
+  const status = box.querySelector('.kh-status');
+  let karte = null, marker = null;
+
+  const setze = (lat, lng, text) => {
+    latFeld.value = Number(lat).toFixed(6);
+    lngFeld.value = Number(lng).toFixed(6);
+    status.textContent = text;
+    if (karte) {
+      const ll = [Number(lat), Number(lng)];
+      if (marker) marker.setLatLng(ll); else marker = standPunkt(ll).addTo(karte);
+    }
+  };
+
+  // GPS: erst genau (GPS), bei Zeitüberschreitung/kein Signal nochmal ungenau (WLAN/Mobilfunk)
+  box.querySelector('.kh-gps').onclick = () => {
+    if (!navigator.geolocation) { status.textContent = 'Dieses Gerät/dieser Browser kann den Standort nicht ermitteln – bitte „Auf Karte wählen“ verwenden.'; return; }
+    if (!window.isSecureContext) { status.textContent = 'Standort geht nur über https:// – bitte die App über die GitHub-Adresse öffnen.'; return; }
+    const ok = (pos) => setze(pos.coords.latitude, pos.coords.longitude, `✓ Standort übernommen (Genauigkeit ca. ${Math.round(pos.coords.accuracy)} m)`);
+    const fehlerText = (err) => {
+      if (err.code === 1) return 'Standortzugriff ist für diese Seite gesperrt. iPhone/iPad: Einstellungen → Datenschutz → Ortungsdienste → Safari-Websites → „Beim Verwenden der App“. Danach Seite neu laden. Alternativ „Auf Karte wählen“.';
+      if (err.code === 3) return 'Kein Standort innerhalb der Wartezeit – im Freien nochmal versuchen oder „Auf Karte wählen“.';
+      return 'Standort derzeit nicht verfügbar (Ortungsdienste am Gerät eingeschaltet?) – oder „Auf Karte wählen“.';
     };
-    lngFeld.parentElement.appendChild(btn);
-  }
+    status.textContent = 'Standort wird ermittelt …';
+    navigator.geolocation.getCurrentPosition(ok, (err) => {
+      if (err.code === 1) { status.textContent = fehlerText(err); return; }
+      status.textContent = 'Genaue Ortung klappt nicht, versuche ungenaue Ortung …';
+      navigator.geolocation.getCurrentPosition(ok, (err2) => { status.textContent = fehlerText(err2); },
+        { enableHighAccuracy: false, timeout: 20000, maximumAge: 10 * 60 * 1000 });
+    }, { enableHighAccuracy: true, timeout: 20000, maximumAge: 60 * 1000 });
+  };
+
+  box.querySelector('.kh-karte').onclick = () => {
+    const kartenDiv = box.querySelector('.kh-map');
+    kartenDiv.classList.toggle('hidden');
+    if (kartenDiv.classList.contains('hidden')) return;
+    if (!karte) {
+      const hatWert = latFeld.value !== '' && lngFeld.value !== '';
+      const mitte = hatWert ? [Number(latFeld.value), Number(lngFeld.value)] : CONFIG.MAP_CENTER;
+      karte = L.map(kartenDiv).setView(mitte, hatWert ? 17 : CONFIG.MAP_ZOOM);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(karte);
+      if (hatWert) marker = standPunkt(mitte).addTo(karte);
+      karte.on('click', (e) => setze(e.latlng.lat, e.latlng.lng, '✓ Punkt auf der Karte übernommen'));
+    }
+    status.textContent = 'Auf die Karte tippen, wo der Bienenstand steht.';
+    setTimeout(() => { karte.invalidateSize(); kartenDiv.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 50);
+  };
 }
 
 function naechsteVolkNummer() {
