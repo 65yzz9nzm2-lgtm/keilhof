@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-06.4'; // muss mit version.json übereinstimmen
+const APP_VERSION = '2026-11-06.5'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -504,32 +504,56 @@ async function showSection(name) {
 }
 
 // ============================================================================
-// GLAS-LEISTE UNTEN (Touch-Geräte wie iPad/Handy und schmale Bildschirme)
-// Ersetzt dort das Seitenmenü. Leitgedanke: groß, eindeutig, nichts versteckt -
-// jeder Knopf hat Symbol und Text; die Start-Seite zeigt alle Bereiche als große
-// Knöpfe; "Erfassen" öffnet die häufigsten Eingaben. Am Computer mit Maus bleibt
-// das Seitenmenü wie bisher.
+// OBERFLÄCHE V2 (umschaltbar je Gerät in Einstellungen -> Darstellung)
+// Standard bleibt die klassische Oberfläche mit Menü links. V2: Glas-Leiste unten,
+// alle Bereiche als große Knöpfe auf der Start-Seite, "Erfassen" für die häufigsten
+// Eingaben. Leitgedanke: groß, eindeutig, nichts versteckt - jeder Knopf hat Symbol
+// und Text.
 // ============================================================================
-const TABBAR_MEDIA = window.matchMedia('(max-width: 767px), (pointer: coarse)');
 const TABBAR_FEST = ['dashboard', 'imkerei', 'vieh'];   // direkt in der Leiste
 const TABBAR_KURZ = { dashboard: 'Start', imkerei: 'Imkerei', vieh: 'Vieh' };
+const BIENE_SVG = (klasse = 'w-6 h-6') => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${klasse}"><path d="M11 9.2C10 6 7 4.2 5 5.2S4.2 9.8 8.6 10.6"/><path d="M13 9.2C14 6 17 4.2 19 5.2s.8 4.6-3.6 5.4"/><ellipse cx="12" cy="15" rx="4.6" ry="5.8"/><path d="M7.6 13.4h8.8"/><path d="M7.8 16.8h8.4"/><path d="M12 20.8v1.6"/></svg>`;
 let _aktiveSektion = 'dashboard';
+
+function oberflaecheV2() {
+  try { return localStorage.getItem('keilhof_oberflaeche') === 'v2'; } catch (e) { return false; }
+}
+
+// Überschriften, die in V2 anders heißen bzw. ein anderes Symbol haben
+const _titelKlassisch = {};
+function oberflaecheTitelSetzen(v2) {
+  const V2 = {
+    titelDashboard: `<i data-lucide="house" class="w-6 h-6 text-green-700"></i> Start`,
+    titelImkerei: `${BIENE_SVG('w-6 h-6 text-green-700')} Imkerei`,
+  };
+  Object.keys(V2).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!(id in _titelKlassisch)) _titelKlassisch[id] = el.innerHTML;
+    el.innerHTML = v2 ? V2[id] : _titelKlassisch[id];
+  });
+  lucide.createIcons();
+}
 
 function tabbarModusSetzen() {
   const angemeldet = !document.getElementById('appShell').classList.contains('hidden');
-  const an = angemeldet && TABBAR_MEDIA.matches;
+  const an = angemeldet && oberflaecheV2();
+  const vorher = document.body.classList.contains('mit-tabbar');
   document.body.classList.toggle('mit-tabbar', an);
+  if (an !== vorher || !(Object.keys(_titelKlassisch).length)) oberflaecheTitelSetzen(an);
   if (!an) tabSheetSchliessen();
 }
 
 // Icon eines Menüpunkts aus dem Seitenmenü übernehmen (gleiche Symbole wie dort)
 function navIconHtml(section) {
+  if (section === 'dashboard') return '<i data-lucide="house"></i>';
+  if (section === 'imkerei') return BIENE_SVG('');
   const btn = document.querySelector(`#mainNav .nav-btn[data-section="${section}"]`);
   const svg = btn && btn.querySelector('svg');
   return svg ? svg.outerHTML : '';
 }
 function navBereiche() {
-  return [...document.querySelectorAll('#mainNav .nav-btn')].map(b => ({ section: b.dataset.section, text: b.textContent.trim() }));
+  return [...document.querySelectorAll('#mainNav .nav-btn')].map(b => ({ section: b.dataset.section, text: b.dataset.section === 'dashboard' ? 'Start' : b.textContent.trim() }));
 }
 
 function bereichOeffnen(section) {
@@ -564,7 +588,6 @@ function tabbarAufbauen() {
   document.getElementById('tabPlus').addEventListener('click', () => tabSheetUmschalten('plus'));
   document.getElementById('tabSheetBackdrop').addEventListener('click', tabSheetSchliessen);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') tabSheetSchliessen(); });
-  TABBAR_MEDIA.addEventListener('change', tabbarModusSetzen);
 }
 
 function tabbarMarkieren() {
@@ -641,6 +664,23 @@ function schriftAnwenden() {
   });
 }
 schriftAnwenden();
+
+function oberflaecheKnoepfeMarkieren() {
+  const wahl = oberflaecheV2() ? 'v2' : 'v1';
+  document.querySelectorAll('.oberflaeche-btn').forEach(b => {
+    const an = b.dataset.oberflaeche === wahl;
+    b.classList.toggle('border-green-700', an); b.classList.toggle('bg-green-50', an); b.classList.toggle('text-green-800', an);
+    b.classList.toggle('border-gray-200', !an);
+  });
+}
+oberflaecheKnoepfeMarkieren();
+document.querySelectorAll('.oberflaeche-btn').forEach(b => b.addEventListener('click', () => {
+  try { localStorage.setItem('keilhof_oberflaeche', b.dataset.oberflaeche); } catch (e) {}
+  oberflaecheKnoepfeMarkieren();
+  tabbarModusSetzen();
+  tabbarMarkieren();
+  toast(b.dataset.oberflaeche === 'v2' ? 'Oberfläche V2 ist eingeschaltet.' : 'Klassische Oberfläche ist eingeschaltet.');
+}));
 document.querySelectorAll('.schrift-btn').forEach(b => b.addEventListener('click', () => {
   try { localStorage.setItem('keilhof_schrift', b.dataset.schrift); } catch (e) {}
   schriftAnwenden();
@@ -1999,7 +2039,7 @@ function openFlaecheModal(initial = {}) {
       { key: 'Nutzungsart', label: 'Nutzungsart', type: 'select', options: NUTZUNGSARTEN },
       { key: 'Rebsorte', label: 'Rebsorte/Sorte (nur bei Weinbau/Obstbau relevant)' },
       { key: 'AnzahlPflanzen', label: 'Anzahl Pflanzen (nur bei Weinbau/Obstbau relevant)', type: 'number' },
-      { key: 'ArbeitsablaufText', label: 'Arbeitsschritte (kommagetrennt, in Reihenfolge)', help: 'z.B. Pflügen, Grubbern, Säen, Düngen, Ernten - oder 1. Schnitt, 2. Schnitt, 3. Schnitt. Ermöglicht die "Nächster Schritt"-Anzeige auf der Start-Seite.' },
+      { key: 'ArbeitsablaufText', label: 'Arbeitsschritte (kommagetrennt, in Reihenfolge)', help: 'z.B. Pflügen, Grubbern, Säen, Düngen, Ernten - oder 1. Schnitt, 2. Schnitt, 3. Schnitt. Ermöglicht die "Nächster Schritt"-Anzeige im Dashboard.' },
       { key: 'Notiz', label: 'Notiz', type: 'textarea' }
     ],
     initial: { ...initial, ArbeitsablaufText: arbeitsablaufListe.join(', ') },
@@ -3257,7 +3297,7 @@ function openFuttermittelModal(initial = {}) {
       { key: 'Kategorie', label: 'Kategorie', type: 'select', options: FUTTERMITTEL_KATEGORIEN, required: true },
       { key: 'Einheit', label: 'Einheit', type: 'select', options: FUTTERMITTEL_EINHEITEN, required: true },
       { key: 'BestandAktuell', label: 'Bestand aktuell', type: 'number', step: '0.1', required: true },
-      { key: 'MindestBestand', label: 'Mindestbestand (Warnung auf der Start-Seite bei Unterschreitung)', type: 'number', step: '0.1' },
+      { key: 'MindestBestand', label: 'Mindestbestand (Warnung im Dashboard bei Unterschreitung)', type: 'number', step: '0.1' },
       { key: 'Notiz', label: 'Notiz', type: 'textarea' }
     ],
     initial: initial.ID ? initial : { BestandAktuell: 0 },

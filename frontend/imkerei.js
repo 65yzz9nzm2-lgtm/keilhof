@@ -896,7 +896,7 @@ function imkereiDashTile() {
   if (!voelker.length && !offen.length && !aktiveStaende().length && !einkaufsliste().length) return '';
   const ueberfaellig = offen.filter(istUeberfaellig);
   return dashTileHtml({
-    id: 'bienen', icon: navIconHtml('imkerei').replace('w-[18px] h-[18px]', 'w-6 h-6') || lucideIcon('hexagon'), title: 'Imkerei', value: `${voelker.length} ${voelker.length === 1 ? 'Volk' : 'Völker'}`,
+    id: 'bienen', icon: document.body.classList.contains('mit-tabbar') ? BIENE_SVG() : lucideIcon('hexagon'), title: 'Imkerei', value: `${voelker.length} ${voelker.length === 1 ? 'Volk' : 'Völker'}`,
     sub: (offen.length ? `${offen.length} ${offen.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen${ueberfaellig.length ? ` · ${ueberfaellig.length} überfällig ⚠️` : ''}` : 'keine offenen Aufgaben')
       + (einkaufsliste().length ? ` · 🛒 ${einkaufsliste().length} zu kaufen` : ''),
     alert: ueberfaellig.length > 0, section: 'imkerei', expandable: true,
