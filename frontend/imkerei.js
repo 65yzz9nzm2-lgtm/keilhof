@@ -198,7 +198,7 @@ function imkerNeuZeichnen() {
   if (detailModal.open && _stockkarteVolkId) renderStockkarte(_stockkarteVolkId);
   else if (detailModal.open && _imkerDetailNeuZeichnen) _imkerDetailNeuZeichnen();
   const sektion = document.getElementById('section-imkerei');
-  if (sektion && !sektion.classList.contains('hidden')) renderImkereiSection();
+  if (sektion && !sektion.classList.contains('hidden')) { renderImkereiSection(); renderImkerWetter(); }
 }
 
 if (IMKEREI_AKTIV) {
@@ -211,6 +211,7 @@ if (IMKEREI_AKTIV) {
 async function loadImkereiSection() {
   await ladeImkerDaten();
   renderImkereiSection();
+  renderImkerWetter();
   ladeMaterialStill().then(ok => { if (ok) renderImkerMaterial(); });
 }
 
@@ -2401,4 +2402,105 @@ function openMaterialGekauftModal(m) {
       if (!isNaN(n)) document.getElementById('field_Betrag').value = (n * Number(m.Preis)).toFixed(2);
     });
   }
+}
+
+// ============================================================================
+// WETTER AN DEN BIENENSTÄNDEN (Open-Meteo, kein API-Schlüssel nötig)
+// Je Stand: aktuell + 5 Tage. "Durchsicht-Wetter" ist eine Faustregel -
+// Schwellen hier anpassen:
+// ============================================================================
+const DURCHSICHT_WETTER = { minTempMax: 15, maxRegenWk: 40, maxRegenMm: 1, maxWindKmh: 25 };
+const WETTER_CACHE_MIN = 30;
+let _imkerWetter = { zeit: 0, daten: null, schluessel: '' };
+
+function standKoordinaten(s) {
+  const hat = s.Lat !== '' && s.Lng !== '' && s.Lat !== undefined && s.Lng !== undefined;
+  return { lat: hat ? Number(s.Lat) : CONFIG.MAP_CENTER[0], lng: hat ? Number(s.Lng) : CONFIG.MAP_CENTER[1], geschaetzt: !hat };
+}
+
+function istDurchsichtWetter(tag) {
+  const r = DURCHSICHT_WETTER;
+  return tag.tMax !== null && tag.tMax >= r.minTempMax
+    && (tag.regenWk === null || tag.regenWk <= r.maxRegenWk)
+    && (tag.regenMm === null || tag.regenMm <= r.maxRegenMm)
+    && (tag.windMax === null || tag.windMax <= r.maxWindKmh);
+}
+
+async function ladeStandWetter(staende) {
+  const schluessel = staende.map(s => s.ID + standKoordinaten(s).lat + standKoordinaten(s).lng).join('|');
+  if (_imkerWetter.daten && _imkerWetter.schluessel === schluessel && Date.now() - _imkerWetter.zeit < WETTER_CACHE_MIN * 60000) return _imkerWetter.daten;
+  const ergebnis = await Promise.all(staende.map(async (s) => {
+    const k = standKoordinaten(s);
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${k.lat.toFixed(4)}&longitude=${k.lng.toFixed(4)}`
+      + '&current=temperature_2m,weather_code,wind_speed_10m'
+      + '&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max'
+      + '&forecast_days=5&timezone=auto';
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error();
+      const d = await res.json();
+      const wert = (feld, i) => (d.daily[feld] && d.daily[feld][i] !== null && d.daily[feld][i] !== undefined ? d.daily[feld][i] : null);
+      return {
+        stand: s, geschaetzt: k.geschaetzt,
+        jetzt: d.current ? { temp: d.current.temperature_2m, code: d.current.weather_code, wind: d.current.wind_speed_10m } : null,
+        tage: d.daily.time.map((datum, i) => ({
+          datum, code: wert('weather_code', i), tMax: wert('temperature_2m_max', i), tMin: wert('temperature_2m_min', i),
+          regenMm: wert('precipitation_sum', i), regenWk: wert('precipitation_probability_max', i), windMax: wert('wind_speed_10m_max', i)
+        }))
+      };
+    } catch (e) {
+      return { stand: s, fehler: true };
+    }
+  }));
+  _imkerWetter = { zeit: Date.now(), daten: ergebnis, schluessel };
+  return ergebnis;
+}
+
+async function renderImkerWetter() {
+  const box = document.getElementById('imkerWetter');
+  if (!box) return;
+  const staende = aktiveStaende().sort((a, b) => String(a.Name).localeCompare(String(b.Name), 'de'));
+  if (!staende.length) { box.innerHTML = ''; return; }
+  if (!navigator.onLine) {
+    box.innerHTML = '<div class="bg-white rounded-xl shadow p-4 text-sm text-gray-400">🌤️ Wetter: ohne Internetverbindung nicht verfügbar.</div>';
+    return;
+  }
+  if (!_imkerWetter.daten) box.innerHTML = '<div class="bg-white rounded-xl shadow p-4 text-sm text-gray-400">🌤️ Wetter wird geladen …</div>';
+  const daten = await ladeStandWetter(staende);
+  const tagName = (datum, i) => (i === 0 ? 'Heute' : i === 1 ? 'Morgen' : new Date(datum).toLocaleDateString('de-DE', { weekday: 'short' }));
+  const r = DURCHSICHT_WETTER;
+
+  box.innerHTML = `<details class="bg-white rounded-xl shadow p-4" ${localStorage.getItem('imker_wetter_zu') === '1' ? '' : 'open'}>
+    <summary class="font-semibold cursor-pointer">🌤️ Wetter an den Bienenständen</summary>
+    <div class="space-y-4 mt-3">
+      ${daten.map(w => {
+        if (w.fehler) return `<div class="text-sm"><b>📍 ${esc(w.stand.Name)}</b> <span class="text-gray-400">– Wetterdienst nicht erreichbar</span></div>`;
+        const guteTage = w.tage.filter(istDurchsichtWetter).length;
+        return `<div>
+          <div class="flex items-baseline justify-between gap-2 flex-wrap">
+            <div class="font-semibold">📍 ${esc(w.stand.Name)}${w.geschaetzt ? ' <span class="text-xs font-normal text-gray-400">(keine Koordinaten – Wetter für Prettau)</span>' : ''}</div>
+            ${w.jetzt ? `<div class="text-sm">${weatherIcon(w.jetzt.code)} <b>${Math.round(w.jetzt.temp)} °C</b> <span class="text-gray-500">· Wind ${Math.round(w.jetzt.wind)} km/h</span></div>` : ''}
+          </div>
+          <div class="grid grid-cols-5 gap-1 mt-2">
+            ${w.tage.map((t, i) => {
+              const gut = istDurchsichtWetter(t);
+              return `<div class="rounded-lg p-1.5 text-center text-xs ${gut ? 'bg-amber-50 border border-amber-300' : 'bg-gray-50'}" title="${esc(weatherLabel(t.code))}">
+                <div class="text-gray-500">${tagName(t.datum, i)}</div>
+                <div class="text-xl leading-tight">${t.code !== null ? weatherIcon(t.code) : '–'}</div>
+                <div><b>${t.tMax !== null ? Math.round(t.tMax) : '–'}°</b> <span class="text-gray-400">${t.tMin !== null ? Math.round(t.tMin) + '°' : ''}</span></div>
+                <div class="text-gray-500">${t.regenMm !== null && t.regenMm >= 0.1 ? zahl(t.regenMm) + ' mm' : '&nbsp;'}</div>
+                <div class="h-4">${gut ? '🐝' : ''}</div>
+              </div>`;
+            }).join('')}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">${guteTage ? `🐝 ${guteTage} ${guteTage === 1 ? 'Tag' : 'Tage'} mit Durchsicht-Wetter` : 'Kein Durchsicht-Wetter in den nächsten 5 Tagen'}</div>
+        </div>`;
+      }).join('')}
+      <p class="text-xs text-gray-400">🐝 = Faustregel fürs Öffnen der Völker: mindestens ${r.minTempMax} °C, Regen höchstens ${r.maxRegenMm} mm bzw. ${r.maxRegenWk} % Wahrscheinlichkeit, Wind bis ${r.maxWindKmh} km/h. Quelle: Open-Meteo.</p>
+    </div>
+  </details>`;
+  // auf- oder zugeklappt merken
+  box.querySelector('details').addEventListener('toggle', (e) => {
+    try { localStorage.setItem('imker_wetter_zu', e.target.open ? '0' : '1'); } catch (err) { /* egal */ }
+  });
 }
