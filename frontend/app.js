@@ -505,12 +505,14 @@ async function showSection(name) {
 
 // ============================================================================
 // GLAS-LEISTE UNTEN (Touch-Geräte wie iPad/Handy und schmale Bildschirme)
-// Ersetzt dort das Seitenmenü: vier feste Bereiche, in der Mitte "+" für die
-// Schnellerfassung, "Mehr" für alle übrigen Bereiche. Am Computer mit Maus bleibt
+// Ersetzt dort das Seitenmenü. Leitgedanke: groß, eindeutig, nichts versteckt -
+// jeder Knopf hat Symbol und Text; die Start-Seite zeigt alle Bereiche als große
+// Knöpfe; "Erfassen" öffnet die häufigsten Eingaben. Am Computer mit Maus bleibt
 // das Seitenmenü wie bisher.
 // ============================================================================
 const TABBAR_MEDIA = window.matchMedia('(max-width: 767px), (pointer: coarse)');
 const TABBAR_FEST = ['dashboard', 'imkerei', 'vieh'];   // direkt in der Leiste
+const TABBAR_KURZ = { dashboard: 'Start', imkerei: 'Imkerei', vieh: 'Vieh' };
 let _aktiveSektion = 'dashboard';
 
 function tabbarModusSetzen() {
@@ -526,24 +528,38 @@ function navIconHtml(section) {
   const svg = btn && btn.querySelector('svg');
   return svg ? svg.outerHTML : '';
 }
+function navBereiche() {
+  return [...document.querySelectorAll('#mainNav .nav-btn')].map(b => ({ section: b.dataset.section, text: b.textContent.trim() }));
+}
+
+function bereichOeffnen(section) {
+  tabSheetSchliessen();
+  showSection(section);
+  document.querySelector('main').scrollTo({ top: 0 });
+}
 
 function tabbarAufbauen() {
   const leiste = document.getElementById('tabbarLeiste');
   const fest = TABBAR_FEST.filter(s => document.querySelector(`#mainNav .nav-btn[data-section="${s}"]`));
-  const KURZ = { dashboard: 'Start', imkerei: 'Imkerei', vieh: 'Vieh' };
-  const knopf = s => `<button type="button" class="tab-knopf" data-tab="${s}">${navIconHtml(s)}<span>${KURZ[s]}</span></button>`;
+  const knopf = s => `<button type="button" class="tab-knopf" data-tab="${s}">${navIconHtml(s)}<span>${TABBAR_KURZ[s]}</span></button>`;
   leiste.innerHTML = [
     ...fest.slice(0, 2).map(knopf),
-    `<div class="tab-plus"><button type="button" id="tabPlus" aria-label="Schnell erfassen"><i data-lucide="plus"></i></button></div>`,
+    `<button type="button" class="tab-knopf tab-erfassen" id="tabPlus"><span class="plus-kreis"><i data-lucide="plus"></i></span><span>Erfassen</span></button>`,
     ...fest.slice(2).map(knopf),
-    `<button type="button" class="tab-knopf" data-tab="mehr"><i data-lucide="ellipsis"></i><span>Mehr</span></button>`,
+    `<button type="button" class="tab-knopf" data-tab="bereiche"><i data-lucide="layout-grid"></i><span>Bereiche</span></button>`,
   ].join('');
+
+  // Start-Seite: alle Bereiche als große Knöpfe
+  const start = document.getElementById('bereicheStart');
+  start.innerHTML = navBereiche().filter(b => b.section !== 'dashboard').map(b => `
+    <button type="button" class="bereich-knopf" data-section="${b.section}">
+      <span class="bk-icon">${navIconHtml(b.section)}</span><span>${b.text}</span></button>`).join('');
+  start.querySelectorAll('.bereich-knopf').forEach(k => k.addEventListener('click', () => bereichOeffnen(k.dataset.section)));
+
   lucide.createIcons();
-  leiste.querySelectorAll('.tab-knopf').forEach(b => b.addEventListener('click', () => {
-    if (b.dataset.tab === 'mehr') { tabSheetUmschalten('mehr'); return; }
-    tabSheetSchliessen();
-    showSection(b.dataset.tab);
-    document.querySelector('main').scrollTo({ top: 0 });
+  leiste.querySelectorAll('.tab-knopf[data-tab]').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.tab === 'bereiche') tabSheetUmschalten('bereiche');
+    else bereichOeffnen(b.dataset.tab);
   }));
   document.getElementById('tabPlus').addEventListener('click', () => tabSheetUmschalten('plus'));
   document.getElementById('tabSheetBackdrop').addEventListener('click', tabSheetSchliessen);
@@ -553,25 +569,25 @@ function tabbarAufbauen() {
 
 function tabbarMarkieren() {
   const inLeiste = TABBAR_FEST.includes(_aktiveSektion);
-  document.querySelectorAll('#tabbarLeiste .tab-knopf').forEach(b => b.classList.toggle('aktiv',
-    b.dataset.tab === _aktiveSektion || (b.dataset.tab === 'mehr' && !inLeiste)));
+  document.querySelectorAll('#tabbarLeiste .tab-knopf[data-tab]').forEach(b => b.classList.toggle('aktiv',
+    b.dataset.tab === _aktiveSektion || (b.dataset.tab === 'bereiche' && !inLeiste)));
 }
 
 // Schnellerfassung: öffnet den Bereich und dann dessen bestehendes Formular - so
 // gelten dieselben Abläufe (Volk-Auswahl, Prüfungen) wie beim Tippen im Bereich selbst.
 function schnellErfassenEintraege() {
   const e = [];
-  if (IMKEREI_AKTIV) e.push({ gruppe: 'Imkerei', items: [
+  if (IMKEREI_AKTIV) e.push({ gruppe: 'Bienen', items: [
     { icon: '🐝', text: 'Durchsicht', section: 'imkerei', klick: 'btnImkerDurchsicht' },
     { icon: '💊', text: 'Behandlung', section: 'imkerei', klick: 'btnImkerBehandlung' },
     { icon: '🥣', text: 'Fütterung', section: 'imkerei', klick: 'btnImkerFuetterung' },
     { icon: '🍯', text: 'Honigernte', section: 'imkerei', klick: 'btnImkerHonigernte' },
   ] });
-  e.push({ gruppe: 'Viehhaltung', items: [
+  e.push({ gruppe: 'Vieh', items: [
     { icon: '🐄', text: 'Neues Tier', section: 'vieh', klick: 'btnNeuesTier' },
-    { icon: '🧾', text: 'Sammelkosten', section: 'vieh', klick: 'btnSammelkosten' },
+    { icon: '🧾', text: 'Kosten für mehrere Tiere', section: 'vieh', klick: 'btnSammelkosten' },
   ] });
-  e.push({ gruppe: 'Finanzen', items: [
+  e.push({ gruppe: 'Geld', items: [
     { icon: '💸', text: 'Ausgabe', section: 'finanzen', klick: 'btnNeueAllgemeineKosten' },
     { icon: '💶', text: 'Einnahme / Förderung', section: 'finanzen', klick: 'btnNeueSonstigeEinnahme' },
     { icon: '🛒', text: 'Verkauf', section: 'finanzen', klick: 'btnNeueErntevermarktung' },
@@ -583,13 +599,14 @@ function tabSheetUmschalten(art) {
   const sheet = document.getElementById('tabSheet');
   if (sheet.classList.contains('offen') && sheet.dataset.art === art) { tabSheetSchliessen(); return; }
   sheet.dataset.art = art;
+  const schliessen = `<button type="button" class="sheet-schliessen" id="tabSheetZu"><i data-lucide="x"></i> Schließen</button>`;
   if (art === 'plus') {
-    sheet.innerHTML = schnellErfassenEintraege().map(g => `
+    sheet.innerHTML = `<div class="sheet-frage">Was möchtest du eintragen?</div>` + schnellErfassenEintraege().map(g => `
       <div class="sheet-titel">${g.gruppe}</div>
       <div class="sheet-gitter">${g.items.map(i => `
         <button type="button" class="sheet-kachel" data-section="${i.section}" data-klick="${i.klick}">
           <span class="sk-icon">${i.icon}</span><span>${i.text}</span></button>`).join('')}
-      </div>`).join('');
+      </div>`).join('') + schliessen;
     sheet.querySelectorAll('.sheet-kachel').forEach(k => k.addEventListener('click', async () => {
       tabSheetSchliessen();
       await showSection(k.dataset.section);
@@ -597,23 +614,37 @@ function tabSheetUmschalten(art) {
       if (ziel) ziel.click();
     }));
   } else {
-    const weitere = [...document.querySelectorAll('#mainNav .nav-btn')]
-      .filter(b => !TABBAR_FEST.includes(b.dataset.section));
-    sheet.innerHTML = `<div class="sheet-titel">Weitere Bereiche</div>
-      <div class="sheet-gitter">${weitere.map(b => `
-        <button type="button" class="sheet-kachel${b.dataset.section === _aktiveSektion ? ' aktiv' : ''}" data-section="${b.dataset.section}">
-          ${navIconHtml(b.dataset.section)}<span>${b.textContent.trim()}</span></button>`).join('')}
-      </div>`;
-    sheet.querySelectorAll('.sheet-kachel').forEach(k => k.addEventListener('click', () => {
-      tabSheetSchliessen();
-      showSection(k.dataset.section);
-      document.querySelector('main').scrollTo({ top: 0 });
-    }));
+    sheet.innerHTML = `<div class="sheet-frage">Wohin möchtest du?</div>
+      <div class="sheet-gitter">${navBereiche().map(b => `
+        <button type="button" class="sheet-kachel${b.section === _aktiveSektion ? ' aktiv' : ''}" data-section="${b.section}">
+          ${navIconHtml(b.section)}<span>${b.text}</span></button>`).join('')}
+      </div>` + schliessen;
+    sheet.querySelectorAll('.sheet-kachel').forEach(k => k.addEventListener('click', () => bereichOeffnen(k.dataset.section)));
   }
+  lucide.createIcons();
+  document.getElementById('tabSheetZu').addEventListener('click', tabSheetSchliessen);
+  sheet.scrollTop = 0;
   sheet.classList.add('offen');
   document.getElementById('tabSheetBackdrop').classList.add('offen');
   document.getElementById('tabPlus').classList.toggle('offen', art === 'plus');
 }
+
+// Schriftgröße je Gerät (Einstellungen): "Groß" vergrößert die ganze App um ~12 %
+function schriftAnwenden() {
+  let wahl = 'normal';
+  try { wahl = localStorage.getItem('keilhof_schrift') || 'normal'; } catch (e) {}
+  document.documentElement.classList.toggle('schrift-gross', wahl === 'gross');
+  document.querySelectorAll('.schrift-btn').forEach(b => {
+    const an = b.dataset.schrift === wahl;
+    b.classList.toggle('border-green-700', an); b.classList.toggle('bg-green-50', an); b.classList.toggle('text-green-800', an);
+    b.classList.toggle('border-gray-200', !an);
+  });
+}
+schriftAnwenden();
+document.querySelectorAll('.schrift-btn').forEach(b => b.addEventListener('click', () => {
+  try { localStorage.setItem('keilhof_schrift', b.dataset.schrift); } catch (e) {}
+  schriftAnwenden();
+}));
 
 function tabSheetSchliessen() {
   document.getElementById('tabSheet').classList.remove('offen');
@@ -1968,7 +1999,7 @@ function openFlaecheModal(initial = {}) {
       { key: 'Nutzungsart', label: 'Nutzungsart', type: 'select', options: NUTZUNGSARTEN },
       { key: 'Rebsorte', label: 'Rebsorte/Sorte (nur bei Weinbau/Obstbau relevant)' },
       { key: 'AnzahlPflanzen', label: 'Anzahl Pflanzen (nur bei Weinbau/Obstbau relevant)', type: 'number' },
-      { key: 'ArbeitsablaufText', label: 'Arbeitsschritte (kommagetrennt, in Reihenfolge)', help: 'z.B. Pflügen, Grubbern, Säen, Düngen, Ernten - oder 1. Schnitt, 2. Schnitt, 3. Schnitt. Ermöglicht die "Nächster Schritt"-Anzeige im Dashboard.' },
+      { key: 'ArbeitsablaufText', label: 'Arbeitsschritte (kommagetrennt, in Reihenfolge)', help: 'z.B. Pflügen, Grubbern, Säen, Düngen, Ernten - oder 1. Schnitt, 2. Schnitt, 3. Schnitt. Ermöglicht die "Nächster Schritt"-Anzeige auf der Start-Seite.' },
       { key: 'Notiz', label: 'Notiz', type: 'textarea' }
     ],
     initial: { ...initial, ArbeitsablaufText: arbeitsablaufListe.join(', ') },
@@ -3226,7 +3257,7 @@ function openFuttermittelModal(initial = {}) {
       { key: 'Kategorie', label: 'Kategorie', type: 'select', options: FUTTERMITTEL_KATEGORIEN, required: true },
       { key: 'Einheit', label: 'Einheit', type: 'select', options: FUTTERMITTEL_EINHEITEN, required: true },
       { key: 'BestandAktuell', label: 'Bestand aktuell', type: 'number', step: '0.1', required: true },
-      { key: 'MindestBestand', label: 'Mindestbestand (Warnung im Dashboard bei Unterschreitung)', type: 'number', step: '0.1' },
+      { key: 'MindestBestand', label: 'Mindestbestand (Warnung auf der Start-Seite bei Unterschreitung)', type: 'number', step: '0.1' },
       { key: 'Notiz', label: 'Notiz', type: 'textarea' }
     ],
     initial: initial.ID ? initial : { BestandAktuell: 0 },

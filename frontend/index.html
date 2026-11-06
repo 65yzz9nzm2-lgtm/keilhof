@@ -66,73 +66,92 @@
 
   /* ---- Glas-Leiste unten (Touch-Geräte und schmale Bildschirme) ----
      Die Klasse mit-tabbar setzt app.js (matchMedia), dann ersetzt die Leiste das
-     Seitenmenü. Am Computer mit Maus bleibt alles wie bisher. */
-  #tabbar, #tabSheet, #tabSheetBackdrop { display: none; }
+     Seitenmenü. Am Computer mit Maus bleibt alles wie bisher.
+     Ziel: große, eindeutig beschriftete Knöpfe - jeder Knopf hat Symbol UND Text. */
+  #tabbar, #tabSheet, #tabSheetBackdrop, #bereicheStart { display: none; }
   body.mit-tabbar #mainNav, body.mit-tabbar #btnMenuToggle, body.mit-tabbar #navBackdrop { display: none !important; }
   body.mit-tabbar #tabbar { display: block; }
-  body.mit-tabbar main { padding-bottom: calc(118px + env(safe-area-inset-bottom)); }
-  body.mit-tabbar #toast { bottom: calc(108px + env(safe-area-inset-bottom)); }
-  body.mit-tabbar #updateBanner { bottom: calc(108px + env(safe-area-inset-bottom)); }
+  body.mit-tabbar #bereicheStart { display: grid; }
+  body.mit-tabbar main { padding-bottom: calc(132px + env(safe-area-inset-bottom)); }
+  body.mit-tabbar #toast { bottom: calc(120px + env(safe-area-inset-bottom)); }
+  body.mit-tabbar #updateBanner { bottom: calc(120px + env(safe-area-inset-bottom)); }
   #tabbar {
     position: fixed; z-index: 1100; left: 50%; transform: translateX(-50%);
-    bottom: max(12px, env(safe-area-inset-bottom));
-    width: min(560px, calc(100% - 24px));
+    bottom: max(10px, env(safe-area-inset-bottom));
+    width: min(640px, calc(100% - 16px));
   }
   .glas {
-    background: rgba(255, 255, 255, 0.72);
+    background: rgba(255, 255, 255, 0.78);
     -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
-    border: 1px solid rgba(255, 255, 255, 0.75);
-    box-shadow: 0 12px 32px rgba(20, 83, 45, 0.18), 0 2px 6px rgba(20, 83, 45, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow: 0 12px 32px rgba(20, 83, 45, 0.20), 0 2px 6px rgba(20, 83, 45, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   }
-  .tabbar-leiste { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; border-radius: 26px; padding: 6px; }
+  .tabbar-leiste { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: end; gap: 4px; border-radius: 28px; padding: 6px; }
   .tab-knopf {
-    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-    min-height: 60px; border-radius: 20px; color: #4b5563; font-size: 12px; font-weight: 600;
-    transition: color .2s, background-color .2s; -webkit-tap-highlight-color: transparent;
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    min-height: 72px; border-radius: 22px; color: #374151; font-size: 14px; font-weight: 700; line-height: 1.1;
+    transition: color .2s, background-color .2s, transform .15s; -webkit-tap-highlight-color: transparent;
   }
-  .tab-knopf svg { width: 24px; height: 24px; transition: transform .2s; }
-  .tab-knopf.aktiv { color: #166534; background: linear-gradient(180deg, rgba(220, 252, 231, 0.95), rgba(187, 247, 208, 0.55)); }
-  .tab-knopf.aktiv svg { transform: translateY(-1px) scale(1.08); }
-  .tab-knopf.aktiv::before {
-    content: ''; position: absolute; top: 4px; width: 22px; height: 3px; border-radius: 3px; background: #16a34a;
-    box-shadow: 0 0 8px rgba(22, 163, 74, 0.7);
-  }
-  .tab-plus { display: flex; justify-content: center; align-items: flex-end; min-height: 60px; }
-  .tab-plus button {
-    width: 64px; height: 64px; margin-top: -26px; border-radius: 22px; color: #fff;
+  .tab-knopf svg { width: 28px; height: 28px; stroke-width: 2.2; }
+  .tab-knopf.aktiv { color: #fff; background: linear-gradient(160deg, #166534, #15803d); box-shadow: 0 6px 16px rgba(22, 101, 52, 0.35); }
+  .tab-knopf:active { transform: scale(0.95); }
+  /* Mitte: "Erfassen" - runder Knopf ragt aus der Leiste, Text darunter */
+  .tab-erfassen { color: #166534; }
+  .tab-erfassen .plus-kreis {
+    width: 62px; height: 62px; margin-top: -34px; border-radius: 9999px; color: #fff;
     display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(145deg, #15803d, #10b981);
-    box-shadow: 0 10px 22px rgba(21, 128, 61, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    border: 3px solid rgba(255, 255, 255, 0.9); transition: transform .2s;
-    -webkit-tap-highlight-color: transparent;
+    background: linear-gradient(145deg, #d97706, #f59e0b);
+    box-shadow: 0 10px 22px rgba(217, 119, 6, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    border: 4px solid #fff;
   }
-  .tab-plus button svg { width: 30px; height: 30px; transition: transform .25s; }
-  .tab-plus button.offen svg { transform: rotate(45deg); }
-  .tab-plus button:active, .tab-knopf:active { transform: scale(0.94); }
-  #tabSheetBackdrop { position: fixed; inset: 0; z-index: 1098; background: rgba(15, 23, 42, 0.28); }
+  .tab-erfassen .plus-kreis svg { width: 32px; height: 32px; stroke-width: 2.8; transition: transform .25s; }
+  .tab-erfassen.offen .plus-kreis svg { transform: rotate(45deg); }
+  .tab-erfassen.aktiv { background: none; box-shadow: none; color: #b45309; }
+  #tabSheetBackdrop { position: fixed; inset: 0; z-index: 1098; background: rgba(15, 23, 42, 0.35); }
   #tabSheet {
     position: fixed; z-index: 1099; left: 50%; transform: translateX(-50%);
-    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 84px);
-    width: min(560px, calc(100% - 24px)); max-height: calc(100dvh - 180px); overflow-y: auto;
-    border-radius: 26px; padding: 16px;
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 96px);
+    width: min(640px, calc(100% - 16px)); max-height: calc(100dvh - 190px); overflow-y: auto;
+    border-radius: 28px; padding: 18px;
   }
   body.mit-tabbar #tabSheet.offen, body.mit-tabbar #tabSheetBackdrop.offen { display: block; }
   #tabSheet.offen { animation: sheet-rein .2s ease-out; }
   @keyframes sheet-rein { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
-  .sheet-titel { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: 4px 4px 8px; }
-  .sheet-gitter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
-  .sheet-gitter:last-child { margin-bottom: 0; }
-  @media (min-width: 480px) { .sheet-gitter { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .sheet-frage { font-size: 20px; font-weight: 800; color: #1f2937; margin: 2px 4px 14px; }
+  .sheet-titel { font-size: 15px; font-weight: 700; color: #166534; margin: 4px 4px 8px; }
+  .sheet-gitter { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  @media (min-width: 600px) { .sheet-gitter { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   .sheet-kachel {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
-    min-height: 84px; padding: 10px 6px; border-radius: 18px; font-size: 13px; font-weight: 600; color: #1f2937;
-    background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(22, 101, 52, 0.12);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center;
+    min-height: 104px; padding: 12px 8px; border-radius: 20px; font-size: 16px; font-weight: 700; color: #1f2937; line-height: 1.2;
+    background: #fff; border: 2px solid rgba(22, 101, 52, 0.15); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     -webkit-tap-highlight-color: transparent;
   }
-  .sheet-kachel:active { background: #dcfce7; }
-  .sheet-kachel .sk-icon { font-size: 26px; line-height: 1; }
-  .sheet-kachel svg { width: 26px; height: 26px; color: #166534; }
+  .sheet-kachel:active { background: #dcfce7; transform: scale(0.97); }
+  .sheet-kachel .sk-icon { font-size: 34px; line-height: 1; }
+  .sheet-kachel svg { width: 32px; height: 32px; color: #166534; }
   .sheet-kachel.aktiv { background: #dcfce7; border-color: #16a34a; color: #166534; }
+  .sheet-schliessen {
+    width: 100%; min-height: 56px; border-radius: 18px; font-size: 17px; font-weight: 700; color: #374151;
+    background: #f3f4f6; border: 2px solid #e5e7eb; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .sheet-schliessen svg { width: 22px; height: 22px; }
+  /* Start-Seite: alle Bereiche als große Knöpfe - nichts ist versteckt */
+  #bereicheStart { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  @media (min-width: 600px) { #bereicheStart { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .bereich-knopf {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    min-height: 118px; padding: 14px 8px; border-radius: 22px; background: #fff; text-align: center;
+    border: 2px solid #e5e7eb; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    font-size: 17px; font-weight: 700; color: #1f2937; -webkit-tap-highlight-color: transparent;
+  }
+  .bereich-knopf:active { background: #f0fdf4; border-color: #16a34a; transform: scale(0.97); }
+  .bereich-knopf .bk-icon { width: 56px; height: 56px; border-radius: 9999px; background: #dcfce7; color: #166534; display: flex; align-items: center; justify-content: center; }
+  .bereich-knopf .bk-icon svg { width: 30px; height: 30px; }
+  /* Größere Unterreiter (z.B. Imkerei) auf Touch-Geräten */
+  body.mit-tabbar .itab-btn { padding: 14px 18px; font-size: 17px; font-weight: 700; }
+  /* Einstellung "Große Schrift": alles in rem wächst mit */
+  html.schrift-gross { font-size: 18px; }
 
   /* ---- Dashboard: feste, möglichst quadratische Kacheln ---- */
   /* Mobil: zwei Kacheln nebeneinander statt einer langen Liste - mehr auf einen Blick. */
@@ -255,7 +274,7 @@
 
     <!-- Navigation -->
     <nav id="mainNav" class="hidden md:flex w-64 md:w-56 bg-white border-r p-3 flex-col gap-1 shrink-0 fixed md:static top-[57px] h-[calc(100dvh-57px)] md:h-auto left-0 z-[9999] overflow-y-auto shadow-2xl md:shadow-none">
-      <button data-section="dashboard" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="layout-dashboard" class="w-[18px] h-[18px] shrink-0"></i> Dashboard</button>
+      <button data-section="dashboard" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="house" class="w-[18px] h-[18px] shrink-0"></i> Start</button>
       <button data-section="flaechen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="map" class="w-[18px] h-[18px] shrink-0"></i> Flächen</button>
       <button data-section="fuhrpark" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="tractor" class="w-[18px] h-[18px] shrink-0"></i> Fuhrpark</button>
       <button data-section="vieh" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100">
@@ -270,7 +289,7 @@
       </button>
       <button data-section="futtermittel" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="wheat" class="w-[18px] h-[18px] shrink-0"></i> Futtermittel</button>
       <button data-section="weinbau" data-modul="weinbau" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="grape" class="w-[18px] h-[18px] shrink-0"></i> Weinbau &amp; Keller</button>
-      <button data-section="imkerei" data-modul="imkerei" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="hexagon" class="w-[18px] h-[18px] shrink-0"></i> Imkerei</button>
+      <button data-section="imkerei" data-modul="imkerei" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-[18px] h-[18px] shrink-0"><path d="M11 9.2C10 6 7 4.2 5 5.2S4.2 9.8 8.6 10.6"/><path d="M13 9.2C14 6 17 4.2 19 5.2s.8 4.6-3.6 5.4"/><ellipse cx="12" cy="15" rx="4.6" ry="5.8"/><path d="M7.6 13.4h8.8"/><path d="M7.8 16.8h8.4"/><path d="M12 20.8v1.6"/></svg> Imkerei</button>
       <button data-section="finanzen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="wallet" class="w-[18px] h-[18px] shrink-0"></i> Finanzen</button>
       <hr class="my-2">
       <button data-section="einstellungen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="settings" class="w-[18px] h-[18px] shrink-0"></i> Einstellungen</button>
@@ -282,7 +301,8 @@
 
       <!-- DASHBOARD -->
       <section id="section-dashboard" class="app-section space-y-4">
-        <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="layout-dashboard" class="w-6 h-6 text-green-700"></i> Dashboard</h2>
+        <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="house" class="w-6 h-6 text-green-700"></i> Start</h2>
+        <div id="bereicheStart" aria-label="Bereiche"></div>
         <div id="dashboardGrid"></div>
         <div id="dashboardWetterCard" class="max-w-md mx-auto"></div>
       </section>
@@ -430,7 +450,7 @@
       <section id="section-imkerei" data-modul="imkerei" class="app-section hidden space-y-4">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="hexagon" class="w-6 h-6 text-green-700"></i> Imkerei</h2>
+            <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6 text-green-700"><path d="M11 9.2C10 6 7 4.2 5 5.2S4.2 9.8 8.6 10.6"/><path d="M13 9.2C14 6 17 4.2 19 5.2s.8 4.6-3.6 5.4"/><ellipse cx="12" cy="15" rx="4.6" ry="5.8"/><path d="M7.6 13.4h8.8"/><path d="M7.8 16.8h8.4"/><path d="M12 20.8v1.6"/></svg> Imkerei</h2>
             <div id="imkerBetriebskodex" class="text-xs text-gray-500 mt-1"></div>
           </div>
           <div class="flex gap-2 flex-wrap">
@@ -523,6 +543,14 @@
       <section id="section-einstellungen" class="app-section hidden space-y-4">
         <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="settings" class="w-6 h-6 text-green-700"></i> Einstellungen</h2>
         <p class="text-xs text-gray-400">App-Version <span id="appVersionLabel"></span></p>
+        <div class="bg-white rounded-xl shadow p-4 space-y-3 max-w-xl">
+          <h3 class="font-semibold">Schriftgröße auf diesem Gerät</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <button type="button" data-schrift="normal" class="schrift-btn rounded-xl border-2 py-4 font-bold text-base">Normal</button>
+            <button type="button" data-schrift="gross" class="schrift-btn rounded-xl border-2 py-4 font-bold text-xl">Groß</button>
+          </div>
+          <p class="text-sm text-gray-500">Gilt nur für dieses Gerät - jeder kann es für sich einstellen.</p>
+        </div>
         <div class="bg-white rounded-xl shadow p-4 space-y-3 max-w-xl">
           <h3 class="font-semibold">Betrieb</h3>
           <div id="betriebForm" class="space-y-2"></div>
