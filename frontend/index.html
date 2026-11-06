@@ -64,6 +64,76 @@
     #mainNav.nav-open { display: flex !important; flex-direction: column; }
   }
 
+  /* ---- Glas-Leiste unten (Touch-Geräte und schmale Bildschirme) ----
+     Die Klasse mit-tabbar setzt app.js (matchMedia), dann ersetzt die Leiste das
+     Seitenmenü. Am Computer mit Maus bleibt alles wie bisher. */
+  #tabbar, #tabSheet, #tabSheetBackdrop { display: none; }
+  body.mit-tabbar #mainNav, body.mit-tabbar #btnMenuToggle, body.mit-tabbar #navBackdrop { display: none !important; }
+  body.mit-tabbar #tabbar { display: block; }
+  body.mit-tabbar main { padding-bottom: calc(118px + env(safe-area-inset-bottom)); }
+  body.mit-tabbar #toast { bottom: calc(108px + env(safe-area-inset-bottom)); }
+  body.mit-tabbar #updateBanner { bottom: calc(108px + env(safe-area-inset-bottom)); }
+  #tabbar {
+    position: fixed; z-index: 1100; left: 50%; transform: translateX(-50%);
+    bottom: max(12px, env(safe-area-inset-bottom));
+    width: min(560px, calc(100% - 24px));
+  }
+  .glas {
+    background: rgba(255, 255, 255, 0.72);
+    -webkit-backdrop-filter: blur(18px) saturate(170%); backdrop-filter: blur(18px) saturate(170%);
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    box-shadow: 0 12px 32px rgba(20, 83, 45, 0.18), 0 2px 6px rgba(20, 83, 45, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  }
+  .tabbar-leiste { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; border-radius: 26px; padding: 6px; }
+  .tab-knopf {
+    position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    min-height: 60px; border-radius: 20px; color: #4b5563; font-size: 12px; font-weight: 600;
+    transition: color .2s, background-color .2s; -webkit-tap-highlight-color: transparent;
+  }
+  .tab-knopf svg { width: 24px; height: 24px; transition: transform .2s; }
+  .tab-knopf.aktiv { color: #166534; background: linear-gradient(180deg, rgba(220, 252, 231, 0.95), rgba(187, 247, 208, 0.55)); }
+  .tab-knopf.aktiv svg { transform: translateY(-1px) scale(1.08); }
+  .tab-knopf.aktiv::before {
+    content: ''; position: absolute; top: 4px; width: 22px; height: 3px; border-radius: 3px; background: #16a34a;
+    box-shadow: 0 0 8px rgba(22, 163, 74, 0.7);
+  }
+  .tab-plus { display: flex; justify-content: center; align-items: flex-end; min-height: 60px; }
+  .tab-plus button {
+    width: 64px; height: 64px; margin-top: -26px; border-radius: 22px; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(145deg, #15803d, #10b981);
+    box-shadow: 0 10px 22px rgba(21, 128, 61, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    border: 3px solid rgba(255, 255, 255, 0.9); transition: transform .2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tab-plus button svg { width: 30px; height: 30px; transition: transform .25s; }
+  .tab-plus button.offen svg { transform: rotate(45deg); }
+  .tab-plus button:active, .tab-knopf:active { transform: scale(0.94); }
+  #tabSheetBackdrop { position: fixed; inset: 0; z-index: 1098; background: rgba(15, 23, 42, 0.28); }
+  #tabSheet {
+    position: fixed; z-index: 1099; left: 50%; transform: translateX(-50%);
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 84px);
+    width: min(560px, calc(100% - 24px)); max-height: calc(100dvh - 180px); overflow-y: auto;
+    border-radius: 26px; padding: 16px;
+  }
+  body.mit-tabbar #tabSheet.offen, body.mit-tabbar #tabSheetBackdrop.offen { display: block; }
+  #tabSheet.offen { animation: sheet-rein .2s ease-out; }
+  @keyframes sheet-rein { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+  .sheet-titel { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: 4px 4px 8px; }
+  .sheet-gitter { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+  .sheet-gitter:last-child { margin-bottom: 0; }
+  @media (min-width: 480px) { .sheet-gitter { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .sheet-kachel {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center;
+    min-height: 84px; padding: 10px 6px; border-radius: 18px; font-size: 13px; font-weight: 600; color: #1f2937;
+    background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(22, 101, 52, 0.12);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sheet-kachel:active { background: #dcfce7; }
+  .sheet-kachel .sk-icon { font-size: 26px; line-height: 1; }
+  .sheet-kachel svg { width: 26px; height: 26px; color: #166534; }
+  .sheet-kachel.aktiv { background: #dcfce7; border-color: #16a34a; color: #166534; }
+
   /* ---- Dashboard: feste, möglichst quadratische Kacheln ---- */
   /* Mobil: zwei Kacheln nebeneinander statt einer langen Liste - mehr auf einen Blick. */
   #dashboardGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
@@ -518,6 +588,11 @@
 
 <!-- Druckansicht (wird nur beim Drucken/PDF sichtbar) -->
 <div id="druckBereich"></div>
+
+<!-- Glas-Leiste unten + Auswahlfelder (Inhalt baut app.js) -->
+<div id="tabSheetBackdrop"></div>
+<div id="tabSheet" class="glas" role="dialog" aria-modal="true"></div>
+<nav id="tabbar" aria-label="Hauptnavigation"><div class="glas tabbar-leiste" id="tabbarLeiste"></div></nav>
 
 <!-- Toast -->
 <div id="toast" class="hidden fixed bottom-4 right-4 max-w-sm bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50"></div>

@@ -484,6 +484,9 @@ document.querySelectorAll('.nav-btn').forEach(btn => {
 
 async function showSection(name) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.section === name));
+  _aktiveSektion = name;
+  tabbarModusSetzen();
+  tabbarMarkieren();
   document.querySelectorAll('.app-section').forEach(s => s.classList.add('hidden'));
   const zielSektion = document.getElementById('section-' + name);
   if (!zielSektion) return;
@@ -498,6 +501,125 @@ async function showSection(name) {
   if (name === 'imkerei' && IMKEREI_AKTIV) await loadImkereiSection();
   if (name === 'finanzen') await loadFinanzenSection();
   if (name === 'einstellungen') await loadEinstellungenSection();
+}
+
+// ============================================================================
+// GLAS-LEISTE UNTEN (Touch-Geräte wie iPad/Handy und schmale Bildschirme)
+// Ersetzt dort das Seitenmenü: vier feste Bereiche, in der Mitte "+" für die
+// Schnellerfassung, "Mehr" für alle übrigen Bereiche. Am Computer mit Maus bleibt
+// das Seitenmenü wie bisher.
+// ============================================================================
+const TABBAR_MEDIA = window.matchMedia('(max-width: 767px), (pointer: coarse)');
+const TABBAR_FEST = ['dashboard', 'imkerei', 'vieh'];   // direkt in der Leiste
+let _aktiveSektion = 'dashboard';
+
+function tabbarModusSetzen() {
+  const angemeldet = !document.getElementById('appShell').classList.contains('hidden');
+  const an = angemeldet && TABBAR_MEDIA.matches;
+  document.body.classList.toggle('mit-tabbar', an);
+  if (!an) tabSheetSchliessen();
+}
+
+// Icon eines Menüpunkts aus dem Seitenmenü übernehmen (gleiche Symbole wie dort)
+function navIconHtml(section) {
+  const btn = document.querySelector(`#mainNav .nav-btn[data-section="${section}"]`);
+  const svg = btn && btn.querySelector('svg');
+  return svg ? svg.outerHTML : '';
+}
+
+function tabbarAufbauen() {
+  const leiste = document.getElementById('tabbarLeiste');
+  const fest = TABBAR_FEST.filter(s => document.querySelector(`#mainNav .nav-btn[data-section="${s}"]`));
+  const KURZ = { dashboard: 'Start', imkerei: 'Imkerei', vieh: 'Vieh' };
+  const knopf = s => `<button type="button" class="tab-knopf" data-tab="${s}">${navIconHtml(s)}<span>${KURZ[s]}</span></button>`;
+  leiste.innerHTML = [
+    ...fest.slice(0, 2).map(knopf),
+    `<div class="tab-plus"><button type="button" id="tabPlus" aria-label="Schnell erfassen"><i data-lucide="plus"></i></button></div>`,
+    ...fest.slice(2).map(knopf),
+    `<button type="button" class="tab-knopf" data-tab="mehr"><i data-lucide="ellipsis"></i><span>Mehr</span></button>`,
+  ].join('');
+  lucide.createIcons();
+  leiste.querySelectorAll('.tab-knopf').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.tab === 'mehr') { tabSheetUmschalten('mehr'); return; }
+    tabSheetSchliessen();
+    showSection(b.dataset.tab);
+    document.querySelector('main').scrollTo({ top: 0 });
+  }));
+  document.getElementById('tabPlus').addEventListener('click', () => tabSheetUmschalten('plus'));
+  document.getElementById('tabSheetBackdrop').addEventListener('click', tabSheetSchliessen);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') tabSheetSchliessen(); });
+  TABBAR_MEDIA.addEventListener('change', tabbarModusSetzen);
+}
+
+function tabbarMarkieren() {
+  const inLeiste = TABBAR_FEST.includes(_aktiveSektion);
+  document.querySelectorAll('#tabbarLeiste .tab-knopf').forEach(b => b.classList.toggle('aktiv',
+    b.dataset.tab === _aktiveSektion || (b.dataset.tab === 'mehr' && !inLeiste)));
+}
+
+// Schnellerfassung: öffnet den Bereich und dann dessen bestehendes Formular - so
+// gelten dieselben Abläufe (Volk-Auswahl, Prüfungen) wie beim Tippen im Bereich selbst.
+function schnellErfassenEintraege() {
+  const e = [];
+  if (IMKEREI_AKTIV) e.push({ gruppe: 'Imkerei', items: [
+    { icon: '🐝', text: 'Durchsicht', section: 'imkerei', klick: 'btnImkerDurchsicht' },
+    { icon: '💊', text: 'Behandlung', section: 'imkerei', klick: 'btnImkerBehandlung' },
+    { icon: '🥣', text: 'Fütterung', section: 'imkerei', klick: 'btnImkerFuetterung' },
+    { icon: '🍯', text: 'Honigernte', section: 'imkerei', klick: 'btnImkerHonigernte' },
+  ] });
+  e.push({ gruppe: 'Viehhaltung', items: [
+    { icon: '🐄', text: 'Neues Tier', section: 'vieh', klick: 'btnNeuesTier' },
+    { icon: '🧾', text: 'Sammelkosten', section: 'vieh', klick: 'btnSammelkosten' },
+  ] });
+  e.push({ gruppe: 'Finanzen', items: [
+    { icon: '💸', text: 'Ausgabe', section: 'finanzen', klick: 'btnNeueAllgemeineKosten' },
+    { icon: '💶', text: 'Einnahme / Förderung', section: 'finanzen', klick: 'btnNeueSonstigeEinnahme' },
+    { icon: '🛒', text: 'Verkauf', section: 'finanzen', klick: 'btnNeueErntevermarktung' },
+  ] });
+  return e;
+}
+
+function tabSheetUmschalten(art) {
+  const sheet = document.getElementById('tabSheet');
+  if (sheet.classList.contains('offen') && sheet.dataset.art === art) { tabSheetSchliessen(); return; }
+  sheet.dataset.art = art;
+  if (art === 'plus') {
+    sheet.innerHTML = schnellErfassenEintraege().map(g => `
+      <div class="sheet-titel">${g.gruppe}</div>
+      <div class="sheet-gitter">${g.items.map(i => `
+        <button type="button" class="sheet-kachel" data-section="${i.section}" data-klick="${i.klick}">
+          <span class="sk-icon">${i.icon}</span><span>${i.text}</span></button>`).join('')}
+      </div>`).join('');
+    sheet.querySelectorAll('.sheet-kachel').forEach(k => k.addEventListener('click', async () => {
+      tabSheetSchliessen();
+      await showSection(k.dataset.section);
+      const ziel = document.getElementById(k.dataset.klick);
+      if (ziel) ziel.click();
+    }));
+  } else {
+    const weitere = [...document.querySelectorAll('#mainNav .nav-btn')]
+      .filter(b => !TABBAR_FEST.includes(b.dataset.section));
+    sheet.innerHTML = `<div class="sheet-titel">Weitere Bereiche</div>
+      <div class="sheet-gitter">${weitere.map(b => `
+        <button type="button" class="sheet-kachel${b.dataset.section === _aktiveSektion ? ' aktiv' : ''}" data-section="${b.dataset.section}">
+          ${navIconHtml(b.dataset.section)}<span>${b.textContent.trim()}</span></button>`).join('')}
+      </div>`;
+    sheet.querySelectorAll('.sheet-kachel').forEach(k => k.addEventListener('click', () => {
+      tabSheetSchliessen();
+      showSection(k.dataset.section);
+      document.querySelector('main').scrollTo({ top: 0 });
+    }));
+  }
+  sheet.classList.add('offen');
+  document.getElementById('tabSheetBackdrop').classList.add('offen');
+  document.getElementById('tabPlus').classList.toggle('offen', art === 'plus');
+}
+
+function tabSheetSchliessen() {
+  document.getElementById('tabSheet').classList.remove('offen');
+  document.getElementById('tabSheetBackdrop').classList.remove('offen');
+  const plus = document.getElementById('tabPlus');
+  if (plus) plus.classList.remove('offen');
 }
 
 // ============================================================================
@@ -517,6 +639,7 @@ window.addEventListener('DOMContentLoaded', () => {
   if (!IMKEREI_AKTIV) {
     document.querySelectorAll('[data-modul="imkerei"]').forEach(el => el.remove());
   }
+  tabbarAufbauen();
 
   Auth.init(onSignedIn, onSignedOut);
 
