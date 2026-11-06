@@ -33,6 +33,9 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
 
 - [x] **Förderungen & sonstige Einnahmen** in Finanzen (Beiträge vom Land, Weideinteressentschaft …)
   – `backend/NACHTRAG_SONSTIGE_EINNAHMEN.sql`
+- [x] **Betriebskodex** Hof und Imkerei in den Einstellungen
+- [x] **Wetter an den Bienenständen** mit „Durchsicht-Wetter“-Hinweis
+- [ ] **Kaufpreis-Feld** direkt im Formular „Neues Einzeltier“ (legt die Kauf-Buchung gleich mit an) – Antwort offen
 
 ## Sonstiges
 
