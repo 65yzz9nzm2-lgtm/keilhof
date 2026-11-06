@@ -124,6 +124,7 @@ create table if not exists public.behandlungen (
   methode text,
   wartezeit_tage int,
   bezugsquelle text, tierarzt text,
+  kaufdatum date, belegnummer text, behandelnde_person text,
   sammel_id uuid,
   notiz text,
   erfasst_von text, erfasst_am timestamptz default now()

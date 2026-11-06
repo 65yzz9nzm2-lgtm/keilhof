@@ -239,6 +239,7 @@ const ENTITIES = {
     ID: 'id', VolkID: 'volk_id', Datum: 'datum', DatumBis: 'datum_bis', Mittel: 'mittel',
     Wirkstoff: 'wirkstoff', Chargennummer: 'chargennummer', Menge: 'menge', Einheit: 'einheit',
     Methode: 'methode', WartezeitTage: 'wartezeit_tage', Bezugsquelle: 'bezugsquelle', Tierarzt: 'tierarzt',
+    Kaufdatum: 'kaufdatum', Belegnummer: 'belegnummer', BehandelndePerson: 'behandelnde_person',
     SammelID: 'sammel_id', Notiz: 'notiz', ErfasstVon: 'erfasst_von', ErfasstAm: 'erfasst_am'
   } },
   fuetterungen: { table: 'fuetterungen', felder: {

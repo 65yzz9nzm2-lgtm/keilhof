@@ -593,8 +593,11 @@ function openBehandlungModal({ volkIds = [], initial = null }) {
     { key: 'Einheit', label: 'Einheit', suggestions: BEHANDLUNG_EINHEITEN },
     { key: 'Methode', label: 'Methode', suggestions: [...new Set(BEHANDLUNG_METHODEN.concat(eindeutigeWerte(imker.behandlungen, 'Methode')))] },
     { key: 'WartezeitTage', label: 'Wartezeit (Tage)', type: 'number' },
-    { key: 'Bezugsquelle', label: 'Bezugsquelle', suggestions: eindeutigeWerte(imker.behandlungen, 'Bezugsquelle') },
-    { key: 'Tierarzt', label: 'Tierarzt', suggestions: eindeutigeWerte(imker.behandlungen, 'Tierarzt') },
+    { key: 'Bezugsquelle', label: 'Lieferant (Name und Anschrift)', suggestions: eindeutigeWerte(imker.behandlungen, 'Bezugsquelle') },
+    { key: 'Kaufdatum', label: 'Kaufdatum des Mittels', type: 'date' },
+    { key: 'Belegnummer', label: 'Beleg-Nr.', suggestions: eindeutigeWerte(imker.behandlungen, 'Belegnummer') },
+    { key: 'Tierarzt', label: 'Verschreibung durch (Tierarzt)', suggestions: eindeutigeWerte(imker.behandlungen, 'Tierarzt') },
+    { key: 'BehandelndePerson', label: 'Behandelnde Person', suggestions: eindeutigeWerte(imker.behandlungen, 'BehandelndePerson') },
     { key: 'Notiz', label: 'Notiz', type: 'textarea' }
   );
 
@@ -631,7 +634,7 @@ function openBehandlungModal({ volkIds = [], initial = null }) {
       const vorlage = imker.behandlungen.filter(b => b.Mittel === mittelFeld.value)
         .sort((a, b) => datumWert(b.Datum) - datumWert(a.Datum))[0];
       if (!vorlage) return;
-      ['Wirkstoff', 'Chargennummer', 'Menge', 'Einheit', 'Methode', 'WartezeitTage', 'Bezugsquelle', 'Tierarzt'].forEach(f => {
+      ['Wirkstoff', 'Chargennummer', 'Menge', 'Einheit', 'Methode', 'WartezeitTage', 'Bezugsquelle', 'Kaufdatum', 'Belegnummer', 'Tierarzt', 'BehandelndePerson'].forEach(f => {
         const el = document.getElementById('field_' + f);
         if (el && !el.value && vorlage[f] !== '') el.value = vorlage[f];
       });
@@ -1046,7 +1049,8 @@ function renderZeitleiste(volk, container) {
     add(b.Datum, '💊', `Behandlung: ${b.Mittel}`, [
       b.Wirkstoff, b.Menge !== '' ? `${zahl(b.Menge, 2)} ${b.Einheit || ''}` : '', b.Methode,
       b.DatumBis ? `bis ${fmtDate(b.DatumBis)}` : '', b.Chargennummer ? `Charge ${b.Chargennummer}` : '',
-      b.WartezeitTage !== '' ? `Wartezeit ${b.WartezeitTage} Tage` : '', b.Tierarzt ? `Tierarzt: ${b.Tierarzt}` : '', b.Notiz
+      b.WartezeitTage !== '' ? `Wartezeit ${b.WartezeitTage} Tage` : '', b.Bezugsquelle ? `Lieferant: ${b.Bezugsquelle}` : '',
+      b.Belegnummer ? `Beleg ${b.Belegnummer}` : '', b.Tierarzt ? `Verschreibung: ${b.Tierarzt}` : '', b.BehandelndePerson ? `behandelt von ${b.BehandelndePerson}` : '', b.Notiz
     ].filter(Boolean).map(esc).join(' · '), () => openBehandlungModal({ initial: b }), b.ErfasstAm);
   });
   imker.fuetterungen.filter(f => f.VolkID === volk.ID).forEach(f => {
@@ -1066,7 +1070,7 @@ function renderZeitleiste(volk, container) {
     ].filter(Boolean).map(esc).join(' · '), () => openHonigernteModal({ initial: h }), h.ErfasstAm);
   });
   imker.koeniginnen.filter(k => k.VolkID === volk.ID).forEach(k => {
-    add(k.EingesetztAm || String(k.ErstelltAm).slice(0, 10), '👑', `Königin ${k.Jahrgang || ''}${k.Aktuell ? '' : ' (abgelöst)'}`,
+    add(k.EingesetztAm || (k.Jahrgang ? `${k.Jahrgang}-01-01` : String(k.ErstelltAm).slice(0, 10)), '👑', `Königin ${k.Jahrgang || ''}${k.Aktuell ? '' : ' (abgelöst)'}`,
       `${koeniginPunkt(k)} ${[k.Farbe, k.Zeichnung, k.Herkunft, k.Notiz].filter(Boolean).map(esc).join(' · ')}`, () => openKoeniginModal(volk, k), k.ErstelltAm);
   });
   imker.aufgaben.filter(a => a.VolkID === volk.ID && a.Erledigt === true).forEach(a => {
@@ -1296,7 +1300,8 @@ function varroaDiagrammSvg(volkId) {
   const ticks = 5;
   for (let i = 0; i <= ticks; i++) {
     const t = tMin + (tMax - tMin) * i / ticks;
-    svg += `<text x="${x(t)}" y="${H - B + 16}" text-anchor="middle" font-size="11" fill="#6b7280">${datumKurz(t)}</text>`;
+    const anker = i === 0 ? 'start' : i === ticks ? 'end' : 'middle'; // Rand-Daten nicht abschneiden
+    svg += `<text x="${x(t)}" y="${H - B + 16}" text-anchor="${anker}" font-size="11" fill="#6b7280">${datumKurz(t)}</text>`;
   }
   // Behandlungen als Band unter der Zeitachse + zarte Hinterlegung im Diagramm
   behandlungen.forEach(({ von, bis, b }) => {
@@ -1620,21 +1625,27 @@ if (IMKEREI_AKTIV) {
 // neue Spalte = Zeile mit Titel und Wert ergänzen. Welche Angaben verpflichtend
 // sind, klärt der Betrieb noch mit Tierarzt bzw. Imkerbund.
 // wert(behandlung, zusatz) - zusatz enthält { stand, volk } zum Behandlungsdatum.
+// Angelehnt an die Spalten des bisher verwendeten Bestandsbuchs (Imkado).
+function behandlungsdauerTage(b) {
+  if (!b.DatumBis) return '';
+  return Math.round((datumWert(b.DatumBis) - datumWert(b.Datum)) / 86400000) + 1;
+}
 const BEHANDLUNG_EXPORT_SPALTEN = [
-  { titel: 'Beginn', wert: (b) => fmtDate(b.Datum) },
-  { titel: 'Ende', wert: (b) => fmtDate(b.DatumBis) },
+  { titel: 'Datum der Anwendung', wert: (b) => fmtDate(b.Datum) },
   { titel: 'Bienenstand', wert: (b, x) => x.stand },
   { titel: 'Volk', wert: (b, x) => x.volk },
-  { titel: 'Mittel', wert: (b) => b.Mittel },
+  { titel: 'Arzneimittel', wert: (b) => b.Mittel },
   { titel: 'Wirkstoff', wert: (b) => b.Wirkstoff },
-  { titel: 'Charge', wert: (b) => b.Chargennummer },
-  { titel: 'Menge', wert: (b) => (b.Menge !== '' ? `${zahl(b.Menge, 2)} ${b.Einheit || ''}`.trim() : '') },
-  { titel: 'Methode', wert: (b) => b.Methode },
+  { titel: 'Lieferant', wert: (b) => b.Bezugsquelle },
+  { titel: 'Kaufdatum', wert: (b) => fmtDate(b.Kaufdatum) },
+  { titel: 'Charge/MHD', wert: (b) => b.Chargennummer },
+  { titel: 'Verabr. Menge', wert: (b) => (b.Menge !== '' ? `${zahl(b.Menge, 2)} ${b.Einheit || ''}`.trim() : '') },
+  { titel: 'Behandl.-Dauer (Tage)', wert: (b) => behandlungsdauerTage(b) },
   { titel: 'Wartezeit (Tage)', wert: (b) => b.WartezeitTage },
-  { titel: 'Bezugsquelle', wert: (b) => b.Bezugsquelle },
-  { titel: 'Tierarzt', wert: (b) => b.Tierarzt },
-  { titel: 'Notiz', wert: (b) => b.Notiz },
-  { titel: 'Erfasst von', wert: (b) => b.ErfasstVon }
+  { titel: 'Beleg', wert: (b) => b.Belegnummer },
+  { titel: 'Verschreibung durch', wert: (b) => b.Tierarzt },
+  { titel: 'Behandelnde Person', wert: (b) => b.BehandelndePerson },
+  { titel: 'Notiz', wert: (b) => b.Notiz }
 ];
 
 const auswertung = { von: `${new Date().getFullYear()}-01-01`, bis: '', stand: '', stichtag: '', honigJahr: String(new Date().getFullYear()) };
