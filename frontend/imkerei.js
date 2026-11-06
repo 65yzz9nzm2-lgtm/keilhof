@@ -1456,6 +1456,13 @@ function renderDurchsicht() {
       ${vorher ? `<div class="text-xs text-gray-400">${esc(durchsichtKurztext(vorher.dv))}</div>` : ''}
       ${vorher ? `<button type="button" id="dsWieLetztes" class="mt-2 w-full border-2 border-dashed border-amber-400 text-amber-800 rounded-xl py-3 font-medium">↺ Waben &amp; Stärke wie beim letzten Mal übernehmen</button>` : ''}
     </div>
+    <div class="mt-3 bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+      <label for="dsDiktat" class="font-semibold block">🎤 Diktieren</label>
+      <div class="text-xs text-gray-500">Ins Feld tippen → auf der Tastatur das <b>Mikrofon</b> drücken → sprechen, z. B. „Sieben Brutwaben, Königin gesehen, zwei Weiselzellen, sanft“. Mit „Volk 3 …“ geht es auch für mehrere Völker auf einmal.</div>
+      <textarea id="dsDiktat" rows="2" class="w-full border rounded-lg px-3 py-2 text-base" placeholder="Hier antippen und diktieren …"></textarea>
+      <button type="button" id="dsDiktatUebernehmen" class="w-full bg-amber-500 text-white rounded-xl py-3 font-semibold">✓ Diktat übernehmen</button>
+      ${ds.diktatMeldung ? `<div class="text-sm text-amber-900">${ds.diktatMeldung}</div>` : ''}
+    </div>
     <div class="divide-y mt-2">
       ${dsZaehler('Brutwaben', 'Brutwaben', w.Brutwaben, basis.Brutwaben)}
       ${dsJaNein('KoeniginGesehen', 'Königin gesehen', w.KoeniginGesehen)}
@@ -1495,6 +1502,13 @@ function renderDurchsicht() {
     renderDurchsicht();
   });
   document.getElementById('dsVolkNotiz').addEventListener('input', (e) => { w.Notiz = e.target.value; entwurfSichern(); });
+  document.getElementById('dsDiktatUebernehmen').onclick = () => {
+    const text = document.getElementById('dsDiktat').value.trim();
+    if (!text) { toast('Erst etwas diktieren oder eintippen.', true); return; }
+    ds.diktatMeldung = diktatUebernehmen(text);
+    entwurfSichern();
+    renderDurchsicht();
+  };
   const wieLetztes = document.getElementById('dsWieLetztes');
   if (wieLetztes) wieLetztes.onclick = () => {
     ['Brutwaben', 'Futterwaben', 'Volksstaerke'].forEach(f => { if (w[f] === null && basis[f] !== null) w[f] = basis[f]; });
@@ -1506,12 +1520,13 @@ function renderDurchsicht() {
     <button type="button" id="dsZurueck" class="w-28 bg-gray-100 rounded-xl py-4 text-lg font-medium">← Zurück</button>
     <button type="button" id="dsVor" class="flex-1 ${letztes ? 'bg-green-700' : 'bg-amber-500'} text-white rounded-xl py-4 text-lg font-semibold">${letztes ? '✓ Speichern' : 'Nächstes Volk →'}</button>`);
   document.getElementById('dsZurueck').onclick = () => {
+    ds.diktatMeldung = '';
     if (ds.idx === 0) ds.schritt = 'auswahl'; else ds.idx--;
     entwurfSichern();
     renderDurchsicht();
   };
   document.getElementById('dsVor').onclick = async () => {
-    if (!letztes) { ds.idx++; entwurfSichern(); renderDurchsicht(); return; }
+    if (!letztes) { ds.diktatMeldung = ''; ds.idx++; entwurfSichern(); renderDurchsicht(); return; }
     await durchsichtSpeichern(document.getElementById('dsVor'));
   };
 }
@@ -2008,4 +2023,165 @@ function druckeQrEtiketten(voelker, titel) {
     <h1>${esc(titel)}</h1>
     <div class="dk-meta">Entlang der gestrichelten Linien ausschneiden. Wetterfest: laminieren oder mit Klebefolie überziehen.</div>
     <div class="qr-raster">${voelker.map(qrEtikettHtml).join('')}</div>`);
+}
+
+// ============================================================================
+// SPRACHEINGABE OHNE KI: Text aus der Diktierfunktion des Geräts (Mikrofon auf
+// der Tastatur) wird hier per Stichwörtern in die Durchsicht-Felder übertragen.
+// Kostenlos, ohne Internet. Was nicht erkannt wird, landet in der Notiz.
+// Stichwörter erweitern: einfach die Listen unten ergänzen.
+// ============================================================================
+const DIKTAT_ZAHLEN = {
+  null: 0, kein: 0, keine: 0, keinen: 0, ein: 1, eine: 1, einen: 1, eins: 1, zwei: 2, zwo: 2, drei: 3, vier: 4,
+  'fünf': 5, fuenf: 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, 'zwölf': 12, zwoelf: 12,
+  dreizehn: 13, vierzehn: 14, 'fünfzehn': 15, sechzehn: 16, siebzehn: 17, achtzehn: 18, neunzehn: 19, zwanzig: 20,
+  halb: 0.5, halbe: 0.5, anderthalb: 1.5, eineinhalb: 1.5
+};
+const DIKTAT_ZAEHLFELDER = [
+  { feld: 'Brutwaben', woerter: ['brutwaben', 'brutwabe', 'brut', 'bw'] },
+  { feld: 'Futterwaben', woerter: ['futterwaben', 'futterwabe', 'fw'] },
+  { feld: 'Weiselzellen', woerter: ['weiselzellen', 'weiselzelle', 'schwarmzellen', 'schwarmzelle', 'nachschaffungszellen', 'wz'] },
+  { feld: 'Volksstaerke', woerter: ['volksstärke', 'stärke', 'staerke', 'volksstaerke'] }
+];
+const DIKTAT_KOENIGIN = ['königin', 'koenigin', 'weisel'];
+const DIKTAT_STIFTE = ['stifte', 'stift', 'eier', 'eierchen'];
+const DIKTAT_NEIN = ['nicht', 'kein', 'keine', 'keinen', 'ohne'];
+const DIKTAT_SANFTMUT_WOERTER = { stechlustig: 1, stechfreudig: 1, aggressiv: 1, 'böse': 1, boese: 1, giftig: 1, 'nervös': 2, nervoes: 2, unruhig: 2, sanft: 3, ruhig: 3, friedlich: 3, brav: 3 };
+// Füllwörter, die nicht in die Notiz sollen
+const DIKTAT_FUELLWOERTER = new Set(['und', 'mit', 'ist', 'sind', 'hat', 'haben', 'es', 'das', 'der', 'die', 'den', 'gesehen', 'gefunden', 'da', 'ja', 'wurde', 'wurden', 'war',
+  'sehr', 'bei', 'im', 'in', 'noch', 'auch', 'ca', 'circa', 'etwa', 'ungefähr', 'waben', 'wabe', 'von', 'auf', 'nummer', 'volk']);
+
+function diktatZahl(tok) {
+  if (tok === undefined) return null;
+  if (/^\d+(\.\d+)?$/.test(tok)) return Number(tok);
+  if (tok in DIKTAT_ZAHLEN) return DIKTAT_ZAHLEN[tok];
+  const m = tok.match(/^(.+?)einhalb$/); // "sechseinhalb"
+  if (m && m[1] in DIKTAT_ZAHLEN) return DIKTAT_ZAHLEN[m[1]] + 0.5;
+  return null;
+}
+
+function diktatNormalisieren(text) {
+  return String(text || '').toLowerCase()
+    .replace(/(\d),(\d)/g, '$1.$2')            // 6,5 -> 6.5
+    .replace(/[„“"'!?;:,()]/g, ' ')
+    .replace(/\.(?!\d)/g, ' ')                 // Satzpunkte weg, Dezimalpunkte bleiben
+    .replace(/\b(\S+)\s+einhalb\b/g, '$1einhalb') // "sieben einhalb" -> "siebeneinhalb"
+    .replace(/\beine?\s+halbe\b/g, 'halbe')
+    .split(/\s+/).filter(Boolean);
+}
+
+// Wertet einen Abschnitt (Tokens) aus -> { werte, rest }
+function diktatAbschnitt(tokens) {
+  const werte = {};
+  const benutzt = new Set();
+  const nimm = (...idx) => idx.forEach(i => benutzt.add(i));
+  // Verneinung: "keine Königin", "keine der Stifte" (davor) bzw. "Königin nicht gesehen" (danach).
+  // Ein "keine" danach gehört schon zum nächsten Stichwort ("Königin gesehen, keine Stifte").
+  const verneinungsTokens = (i) => {
+    const idx = [];
+    if (DIKTAT_NEIN.includes(tokens[i - 1])) idx.push(i - 1);
+    else if (['die', 'der'].includes(tokens[i - 1]) && DIKTAT_NEIN.includes(tokens[i - 2])) idx.push(i - 2, i - 1);
+    if (tokens[i + 1] === 'nicht') idx.push(i + 1);
+    else if (tokens[i + 2] === 'nicht' && ['wurde', 'wurden', 'war', 'ist', 'sind'].includes(tokens[i + 1])) idx.push(i + 1, i + 2);
+    return idx;
+  };
+  const jaNeinFeld = (feld, i) => {
+    const nein = verneinungsTokens(i);
+    werte[feld] = nein.length === 0;
+    nimm(i, ...nein);
+    // "gesehen"/"da" direkt dahinter (auch nach "nicht") gehört dazu
+    const nach = Math.max(i, ...nein) + 1;
+    if (['gesehen', 'da', 'gefunden'].includes(tokens[nach])) nimm(nach);
+  };
+
+  tokens.forEach((tok, i) => {
+    // Zählfelder: Zahl davor ("sieben Brutwaben") oder danach ("Stärke acht", "Stärke ist acht")
+    const zf = DIKTAT_ZAEHLFELDER.find(z => z.woerter.includes(tok));
+    if (zf) {
+      // eine schon vergebene Zahl ("Brutwaben 5 Futterwaben 2") nicht doppelt verwenden
+      let zahl = benutzt.has(i - 1) ? null : diktatZahl(tokens[i - 1]);
+      if (zahl !== null) { nimm(i, i - 1); }
+      else if ((zahl = diktatZahl(tokens[i + 1])) !== null) { nimm(i, i + 1); }
+      else if (['ist', 'von', 'mit'].includes(tokens[i + 1]) && (zahl = diktatZahl(tokens[i + 2])) !== null) { nimm(i, i + 1, i + 2); }
+      if (zahl !== null) werte[zf.feld] = zahl;
+      return;
+    }
+    if (DIKTAT_KOENIGIN.includes(tok)) { jaNeinFeld('KoeniginGesehen', i); return; }
+    if (DIKTAT_STIFTE.includes(tok)) { jaNeinFeld('Stifte', i); return; }
+    if (tok === 'sanftmut') {
+      let zahl = diktatZahl(tokens[i + 1]);
+      if (zahl !== null) nimm(i, i + 1);
+      else if ((zahl = diktatZahl(tokens[i - 1])) !== null) nimm(i, i - 1);
+      if (zahl !== null && zahl >= 1 && zahl <= 4) werte.Sanftmut = Math.round(zahl);
+      return;
+    }
+    if (tok in DIKTAT_SANFTMUT_WOERTER) {
+      let wert = DIKTAT_SANFTMUT_WOERTER[tok];
+      if (tok === 'sanft' && tokens[i - 1] === 'sehr') { wert = 4; nimm(i - 1); }
+      if (wert === 3 && tokens[i - 1] === 'nicht') { wert = 2; nimm(i - 1); }
+      werte.Sanftmut = wert;
+      nimm(i);
+    }
+  });
+
+  const rest = tokens.filter((t, i) => !benutzt.has(i) && !DIKTAT_FUELLWOERTER.has(t) && diktatZahl(t) === null);
+  return { werte, rest };
+}
+
+// Ganzer Text -> Abschnitte je Volk ("Volk 3 ... Volk 4 ...")
+function diktatAuswerten(text) {
+  const tokens = diktatNormalisieren(text);
+  const abschnitte = [];
+  let aktuell = { volkNummer: null, tokens: [] };
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === 'volk') {
+      let j = i + 1;
+      if (tokens[j] === 'nummer') j++;
+      const nr = diktatZahl(tokens[j]);
+      const nrText = nr !== null ? String(nr) : (tokens[j] && /^[\w-]+$/.test(tokens[j]) ? tokens[j] : null);
+      if (nrText !== null) {
+        if (aktuell.tokens.length || aktuell.volkNummer !== null) abschnitte.push(aktuell);
+        aktuell = { volkNummer: nrText, tokens: [] };
+        i = j;
+        continue;
+      }
+    }
+    aktuell.tokens.push(tokens[i]);
+  }
+  abschnitte.push(aktuell);
+  return abschnitte.filter(a => a.tokens.length || a.volkNummer !== null)
+    .map(a => ({ volkNummer: a.volkNummer, ...diktatAbschnitt(a.tokens) }));
+}
+
+const DIKTAT_FELDNAMEN = { Brutwaben: 'Brutwaben', Futterwaben: 'Futterwaben', Weiselzellen: 'Weiselzellen', Volksstaerke: 'Stärke', Sanftmut: 'Sanftmut' };
+
+function diktatWerteText(werte) {
+  return Object.entries(werte).map(([f, w]) => {
+    if (f === 'KoeniginGesehen') return w ? 'Königin gesehen' : 'Königin nicht gesehen';
+    if (f === 'Stifte') return w ? 'Stifte' : 'keine Stifte';
+    return `${DIKTAT_FELDNAMEN[f]} ${zahl(w)}`;
+  }).join(' · ');
+}
+
+// Überträgt das Diktat in die laufende Durchsicht (ds) und liefert eine Rückmeldung
+function diktatUebernehmen(text) {
+  const abschnitte = diktatAuswerten(text);
+  const meldungen = [];
+  let zielIdx = ds.idx;
+  abschnitte.forEach(a => {
+    let idx = ds.idx;
+    if (a.volkNummer !== null) {
+      idx = ds.voelker.findIndex(id => String((volkById(id) || {}).Nummer).toLowerCase() === a.volkNummer);
+      if (idx === -1) { meldungen.push(`⚠️ Volk ${a.volkNummer} ist in dieser Durchsicht nicht ausgewählt – nicht übernommen.`); return; }
+      zielIdx = idx;
+    }
+    const volkId = ds.voelker[idx];
+    const w = ds.werte[volkId];
+    Object.assign(w, a.werte);
+    if (a.rest.length) w.Notiz = [w.Notiz, a.rest.join(' ')].filter(Boolean).join(' · ');
+    const erkannt = diktatWerteText(a.werte);
+    meldungen.push(`${volkLabel(volkById(volkId))}: ${erkannt || 'nichts erkannt'}${a.rest.length ? ` · in die Notiz: „${a.rest.join(' ')}“` : ''}`);
+  });
+  ds.idx = zielIdx;
+  return meldungen.join('<br>');
 }

@@ -14,7 +14,7 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
   - Betriebskodex Hof und Imkerei im Kopf der Exporte
 - [x] Phase 4 – QR-Codes je Volk + Druckansicht je Bienenstand
   - Offen/optional: QR-Scanner direkt in der App (iOS öffnet gescannte Links sonst in Safari statt in der Home-Bildschirm-App)
-- [ ] Phase 5 – Spracheingabe bei der Durchsicht (Transkription + Claude über Supabase Edge Function)
+- [x] Phase 5 – Spracheingabe bei der Durchsicht – umgesetzt OHNE KI/Kosten: Diktierfunktion des Geräts + Stichwort-Erkennung in der App (Listen `DIKTAT_…` in imkerei.js erweiterbar)
 - [ ] Phase 6 – Offline-Erfassung (erst nach Rücksprache: Aufwand abschätzen)
 
 ## Weitere Wünsche (gemeldet am 05.11.2026)
