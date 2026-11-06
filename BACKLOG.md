@@ -24,7 +24,7 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
   - In **Finanzen** bei den Erlösen ebenfalls den kg-Preis, Honig-Erlöse sollen dort erscheinen.
   - Offen: zählt der Wert der ganzen Ernte als Erlös oder nur tatsächlich verkaufter Honig
     (dann eigene Verkaufs-Einträge mit kg, Preis/kg, evtl. Käufer/Los)?
-- [ ] **Imkerei-Einkauf / Material**
+- [x] **Imkerei-Einkauf / Material** – Reiter „Material“: Bestand je Artikel, Einkaufsliste (vorgemerkt oder unter Mindestbestand), „gekauft“ bucht auf Wunsch Kosten (Kategorie Imkerei) – `backend/NACHTRAG_IMKER_MATERIAL.sql`
   - Eigener Bereich in der Imkerei mit allem, was man für die Imkerei kaufen muss:
     Futter (z. B. Invertzucker), Behandlungsmittel, Geräte (z. B. Schleuder), Kleinteile usw.
   - Mit Auswahlmöglichkeiten/Kategorien.

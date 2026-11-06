@@ -256,6 +256,12 @@ const ENTITIES = {
   honigerntevoelker: { table: 'honigernte_voelker', felder: {
     ID: 'id', HonigernteID: 'honigernte_id', VolkID: 'volk_id', MengeKg: 'menge_kg'
   } },
+  imkermaterial: { table: 'imker_material', felder: {
+    ID: 'id', Kategorie: 'kategorie', Bezeichnung: 'bezeichnung', MengeVorhanden: 'menge_vorhanden', Einheit: 'einheit',
+    MindestBestand: 'mindest_bestand', AufEinkaufsliste: 'auf_einkaufsliste', EinkaufMenge: 'einkauf_menge',
+    Bezugsquelle: 'bezugsquelle', Preis: 'preis_je_einheit', Notiz: 'notiz',
+    ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am', Aktiv: 'aktiv'
+  }, bool: ['auf_einkaufsliste', 'aktiv'] },
   bienenaufgaben: { table: 'bienen_aufgaben', felder: {
     ID: 'id', VolkID: 'volk_id', BienenstandID: 'bienenstand_id', Titel: 'titel', FaelligAm: 'faellig_am',
     Erledigt: 'erledigt', ErledigtAm: 'erledigt_am', Notiz: 'notiz', ErstelltVon: 'erstellt_von', ErstelltAm: 'erstellt_am'

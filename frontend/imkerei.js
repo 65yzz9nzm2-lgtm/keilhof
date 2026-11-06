@@ -211,6 +211,7 @@ if (IMKEREI_AKTIV) {
 async function loadImkereiSection() {
   await ladeImkerDaten();
   renderImkereiSection();
+  ladeMaterialStill().then(ok => { if (ok) renderImkerMaterial(); });
 }
 
 if (IMKEREI_AKTIV) {
@@ -223,6 +224,7 @@ if (IMKEREI_AKTIV) {
     });
     document.querySelectorAll('.itab-panel').forEach(p => p.classList.toggle('hidden', p.id !== 'itab-' + b.dataset.itab));
     if (b.dataset.itab === 'auswertung') renderImkerAuswertung();
+    if (b.dataset.itab === 'material') renderImkerMaterial();
   }));
 
   document.getElementById('btnNeuerBienenstand').onclick = () => openBienenstandModal();
@@ -326,6 +328,7 @@ function renderImkereiSection() {
     ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded-full ${ueberfaellig ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'}">${offen.length}</span>` : '';
   renderImkerAufgabenListe(document.getElementById('imkerAufgabenListe'), { mitErledigten: true });
   if (!document.getElementById('itab-auswertung').classList.contains('hidden')) renderImkerAuswertung();
+  if (!document.getElementById('itab-material').classList.contains('hidden')) renderImkerMaterial();
 
 }
 
@@ -886,11 +889,12 @@ function imkereiDashTile() {
   imkerSync();
   const voelker = aktiveVoelker();
   const offen = offeneAufgaben();
-  if (!voelker.length && !offen.length && !aktiveStaende().length) return '';
+  if (!voelker.length && !offen.length && !aktiveStaende().length && !einkaufsliste().length) return '';
   const ueberfaellig = offen.filter(istUeberfaellig);
   return dashTileHtml({
     id: 'bienen', icon: lucideIcon('hexagon'), title: 'Imkerei', value: `${voelker.length} ${voelker.length === 1 ? 'Volk' : 'Völker'}`,
-    sub: offen.length ? `${offen.length} ${offen.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen${ueberfaellig.length ? ` · ${ueberfaellig.length} überfällig ⚠️` : ''}` : 'keine offenen Aufgaben',
+    sub: (offen.length ? `${offen.length} ${offen.length === 1 ? 'Aufgabe' : 'Aufgaben'} offen${ueberfaellig.length ? ` · ${ueberfaellig.length} überfällig ⚠️` : ''}` : 'keine offenen Aufgaben')
+      + (einkaufsliste().length ? ` · 🛒 ${einkaufsliste().length} zu kaufen` : ''),
     alert: ueberfaellig.length > 0, section: 'imkerei', expandable: true,
     preview: offen.slice(0, 8).map(a => `<div class="drow${istUeberfaellig(a) ? ' text-red-600 font-semibold' : ''}"><span>${esc(a.Titel)}</span><b>${a.FaelligAm ? fmtDate(a.FaelligAm) : ''}</b></div>`).join('')
       || '<p class="text-gray-400 text-xs py-2">Keine offenen Aufgaben.</p>'
@@ -2184,4 +2188,217 @@ function diktatUebernehmen(text) {
   });
   ds.idx = zielIdx;
   return meldungen.join('<br>');
+}
+
+// ============================================================================
+// MATERIAL & EINKAUFSLISTE (Reiter "Material")
+// Bestand je Artikel; was knapp ist (unter Mindestbestand) oder von Hand
+// vorgemerkt wurde, steht auf der Einkaufsliste. "Gekauft" erhöht den Bestand
+// und kann den Einkauf als Kosten (Kategorie Imkerei) in den Finanzen buchen.
+// Bewusst nicht im Voll-Sync: fehlt die Tabelle noch, betrifft das nur diesen Reiter.
+// ============================================================================
+const MATERIAL_KATEGORIEN = ['Futter', 'Behandlungsmittel', 'Geräte', 'Beuten & Zubehör', 'Kleinteile', 'Gläser & Verpackung', 'Schutzkleidung', 'Sonstiges'];
+const MATERIAL_VORSCHLAEGE = [
+  'Invertzuckersirup', 'Futterteig', 'Zucker',
+  'Ameisensäure 60 %', 'Oxalsäure', 'Milchsäure', 'Thymol',
+  'Honigschleuder', 'Entdeckelungsgabel', 'Stockmeißel', 'Smoker', 'Abfüllkübel', 'Honigsieb', 'Refraktometer',
+  'Rähmchen', 'Mittelwände', 'Absperrgitter', 'Zarge', 'Futterzarge', 'Gemüllwindel', 'Bienenflucht',
+  'Abstandshalter', 'Draht', 'Zeichenplättchen',
+  'Honigglas 500 g', 'Honigglas 250 g', 'Deckel', 'Etiketten',
+  'Imkerjacke', 'Schleier', 'Handschuhe'
+];
+const MATERIAL_EINHEITEN = ['Stück', 'kg', 'Liter', 'Packung', 'Karton'];
+const MATERIAL_ICONS = { Futter: '🥣', Behandlungsmittel: '💊', 'Geräte': '🛠️', 'Beuten & Zubehör': '📦', Kleinteile: '🔩', 'Gläser & Verpackung': '🫙', Schutzkleidung: '🧤', Sonstiges: '📌' };
+
+function materialListe() {
+  return (listCache['imkermaterial.list'] || []).filter(m => m.Aktiv !== false);
+}
+
+function istKnapp(m) {
+  return m.MindestBestand !== '' && m.MindestBestand !== undefined && Number(m.MengeVorhanden || 0) < Number(m.MindestBestand);
+}
+
+function einkaufsliste() {
+  return materialListe().filter(m => m.AufEinkaufsliste === true || istKnapp(m))
+    .sort((a, b) => MATERIAL_KATEGORIEN.indexOf(a.Kategorie) - MATERIAL_KATEGORIEN.indexOf(b.Kategorie) || String(a.Bezeichnung).localeCompare(String(b.Bezeichnung), 'de'));
+}
+
+// Wie viel kaufen? Vorgemerkte Menge, sonst bis zum Mindestbestand auffüllen
+function kaufMenge(m) {
+  if (m.EinkaufMenge !== '' && m.EinkaufMenge !== undefined) return Number(m.EinkaufMenge);
+  if (istKnapp(m)) return Number(m.MindestBestand) - Number(m.MengeVorhanden || 0);
+  return '';
+}
+
+function bestandText(m) {
+  const menge = m.MengeVorhanden === '' ? '–' : zahl(m.MengeVorhanden, 2);
+  return `${menge} ${esc(m.Einheit || '')}`.trim() + (m.MindestBestand !== '' ? ` <span class="text-gray-400">/ min ${zahl(m.MindestBestand, 2)}</span>` : '');
+}
+
+// Lädt die Materialliste einmal pro Sitzung - still, ohne Fehlermeldung (fehlt die
+// Tabelle noch, zeigt der Reiter selbst einen Hinweis). true = Daten vorhanden.
+let _materialGeladen = false;
+async function ladeMaterialStill() {
+  if (_materialGeladen) return true;
+  try {
+    listCache['imkermaterial.list'] = await Api.call('imkermaterial.list');
+    persistCacheDebounced();
+    _materialGeladen = true;
+  } catch (e) { /* Tabelle fehlt oder offline - vorhandener Stand bleibt */ }
+  return _materialGeladen || 'imkermaterial.list' in listCache;
+}
+
+async function renderImkerMaterial() {
+  const container = document.getElementById('imkerMaterial');
+  if (!container) return;
+  if (!(await ladeMaterialStill())) {
+    container.innerHTML = `<div class="bg-amber-50 border border-amber-300 rounded-xl p-4 text-sm text-amber-900 xl:col-span-2">
+      Der Bereich Material ist in der Datenbank noch nicht eingerichtet. Bitte <b>backend/NACHTRAG_IMKER_MATERIAL.sql</b>
+      im Supabase SQL Editor ausführen und danach „Aktualisieren“ tippen.</div>`;
+    return;
+  }
+  const liste = einkaufsliste();
+  const alle = materialListe();
+  const badge = document.getElementById('imkerMaterialBadge');
+  if (badge) badge.innerHTML = liste.length ? `<span class="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800">🛒 ${liste.length}</span>` : '';
+
+  const einkaufZeile = (m) => {
+    const menge = kaufMenge(m);
+    return `<div class="flex items-center gap-3 py-2">
+      <button type="button" data-id="${m.ID}" class="btn-mat-gekauft w-12 h-12 shrink-0 rounded-xl border-2 border-gray-300 hover:border-green-600 text-xl text-transparent hover:text-green-600" aria-label="gekauft">✓</button>
+      <div class="flex-1 min-w-0">
+        <div class="font-medium">${MATERIAL_ICONS[m.Kategorie] || '📌'} ${esc(m.Bezeichnung)}${menge !== '' ? ` <span class="text-amber-800">· ${zahl(menge, 2)} ${esc(m.Einheit || '')}</span>` : ''}</div>
+        <div class="text-xs text-gray-500">${istKnapp(m) ? '⚠️ knapp · ' : ''}Bestand ${bestandText(m)}${m.Bezugsquelle ? ' · ' + esc(m.Bezugsquelle) : ''}${m.Preis !== '' ? ` · zuletzt ${euro(m.Preis)}/${esc(m.Einheit || 'Einheit')}` : ''}</div>
+      </div>
+      ${m.AufEinkaufsliste === true && !istKnapp(m) ? `<button type="button" data-id="${m.ID}" class="btn-mat-runter text-gray-400 hover:text-red-600 px-2 text-lg" aria-label="von der Liste nehmen">✕</button>` : ''}
+    </div>`;
+  };
+
+  const gruppen = MATERIAL_KATEGORIEN.map(k => ({ k, artikel: alle.filter(m => (m.Kategorie || 'Sonstiges') === k).sort((a, b) => String(a.Bezeichnung).localeCompare(String(b.Bezeichnung), 'de')) }))
+    .filter(g => g.artikel.length);
+
+  container.innerHTML = `
+    <div class="bg-white rounded-xl shadow p-4 space-y-2 min-w-0">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <h3 class="font-semibold">🛒 Einkaufsliste</h3>
+        ${liste.length ? '<button type="button" id="btnMatListeDruck" class="text-sm bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded">🖨️ Drucken / teilen</button>' : ''}
+      </div>
+      <div class="divide-y">${liste.map(einkaufZeile).join('') || '<p class="text-sm text-gray-400 py-2">Nichts zu kaufen. 🎉</p>'}</div>
+      <p class="text-xs text-gray-400">Auf der Liste steht, was du vormerkst (🛒) oder was unter den Mindestbestand fällt. ✓ = gekauft: Bestand wird erhöht, auf Wunsch als Kosten gebucht.</p>
+    </div>
+    <div class="bg-white rounded-xl shadow p-4 space-y-3 min-w-0">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <h3 class="font-semibold">📦 Material &amp; Bestand</h3>
+        <button type="button" id="btnMatNeu" class="bg-green-700 text-white px-3 py-2 rounded text-sm">+ Artikel</button>
+      </div>
+      ${gruppen.map(g => `<div>
+        <div class="text-sm font-semibold text-gray-600 mb-1">${MATERIAL_ICONS[g.k] || ''} ${esc(g.k)}</div>
+        <div class="divide-y">${g.artikel.map(m => `<div class="flex items-center gap-2 py-2">
+          <button type="button" data-id="${m.ID}" class="btn-mat-edit flex-1 min-w-0 text-left">
+            <span class="block font-medium ${istKnapp(m) ? 'text-red-700' : ''}">${esc(m.Bezeichnung)}</span>
+            <span class="block text-xs text-gray-500">${bestandText(m)}</span>
+          </button>
+          <button type="button" data-id="${m.ID}" data-d="-1" class="btn-mat-menge w-10 h-10 rounded-lg bg-gray-100 text-xl font-bold" aria-label="weniger">−</button>
+          <button type="button" data-id="${m.ID}" data-d="1" class="btn-mat-menge w-10 h-10 rounded-lg bg-gray-100 text-xl font-bold" aria-label="mehr">+</button>
+          <button type="button" data-id="${m.ID}" class="btn-mat-liste w-10 h-10 rounded-lg text-lg ${m.AufEinkaufsliste === true ? 'bg-amber-500' : 'bg-gray-100 grayscale opacity-50'}" aria-label="auf die Einkaufsliste" aria-pressed="${m.AufEinkaufsliste === true}">🛒</button>
+        </div>`).join('')}</div>
+      </div>`).join('') || '<p class="text-sm text-gray-400">Noch keine Artikel. Lege an, was du regelmäßig brauchst – z. B. Futter, Behandlungsmittel, Rähmchen, Gläser.</p>'}
+    </div>`;
+
+  const finde = id => materialListe().find(m => m.ID === id);
+  const neu = document.getElementById('btnMatNeu');
+  if (neu) neu.onclick = () => openMaterialModal();
+  const druck = document.getElementById('btnMatListeDruck');
+  if (druck) druck.onclick = () => drucken(druckKopf('Einkaufsliste Imkerei', []) + druckTabelle(['', 'Artikel', 'Menge', 'Kategorie', 'Bezugsquelle'],
+    liste.map(m => ['☐', m.Bezeichnung, kaufMenge(m) !== '' ? `${zahl(kaufMenge(m), 2)} ${m.Einheit || ''}` : '', m.Kategorie, m.Bezugsquelle])));
+  container.querySelectorAll('.btn-mat-edit').forEach(b => b.onclick = () => openMaterialModal(finde(b.dataset.id)));
+  container.querySelectorAll('.btn-mat-gekauft').forEach(b => b.onclick = () => openMaterialGekauftModal(finde(b.dataset.id)));
+  const aendern = async (id, payload) => {
+    try { await imkerSpeichern('imkermaterial', payload, id); } catch (e) { toast(e.message, true); }
+    renderImkerMaterial();
+  };
+  container.querySelectorAll('.btn-mat-runter').forEach(b => b.onclick = () => aendern(b.dataset.id, { AufEinkaufsliste: false, EinkaufMenge: '' }));
+  container.querySelectorAll('.btn-mat-liste').forEach(b => b.onclick = () => {
+    const m = finde(b.dataset.id);
+    aendern(m.ID, { AufEinkaufsliste: m.AufEinkaufsliste !== true });
+  });
+  container.querySelectorAll('.btn-mat-menge').forEach(b => b.onclick = () => {
+    const m = finde(b.dataset.id);
+    aendern(m.ID, { MengeVorhanden: Math.max(0, Number(m.MengeVorhanden || 0) + Number(b.dataset.d)) });
+  });
+}
+
+function openMaterialModal(initial = {}) {
+  const bearbeiten = !!initial.ID;
+  openFormModal({
+    title: bearbeiten ? `${initial.Bezeichnung} bearbeiten` : 'Neuer Artikel',
+    fields: [
+      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: MATERIAL_KATEGORIEN },
+      { key: 'Bezeichnung', label: 'Bezeichnung', required: true, suggestions: MATERIAL_VORSCHLAEGE },
+      { key: 'MengeVorhanden', label: 'Bestand (vorhanden)', type: 'number', step: 'any' },
+      { key: 'Einheit', label: 'Einheit', suggestions: MATERIAL_EINHEITEN },
+      { key: 'MindestBestand', label: 'Mindestbestand (optional)', type: 'number', step: 'any', help: 'Fällt der Bestand darunter, kommt der Artikel automatisch auf die Einkaufsliste.' },
+      { key: 'AufEinkaufsliste', label: 'Auf die Einkaufsliste setzen', type: 'checkbox' },
+      { key: 'EinkaufMenge', label: 'Wie viel kaufen? (optional)', type: 'number', step: 'any' },
+      { key: 'Bezugsquelle', label: 'Bezugsquelle', help: 'z. B. Imkereibedarf, Raiffeisen, Tierarzt' },
+      { key: 'Preis', label: 'Preis je Einheit (€, zuletzt bezahlt)', type: 'number', step: '0.01' },
+      { key: 'Notiz', label: 'Notiz', type: 'textarea' }
+    ],
+    initial: bearbeiten ? initial : { Kategorie: 'Futter', Einheit: 'Stück' },
+    onSubmit: async (values) => {
+      await imkerSpeichern('imkermaterial', values, initial.ID);
+      toast(bearbeiten ? 'Artikel aktualisiert.' : 'Artikel angelegt.');
+      renderImkerMaterial();
+    },
+    onDelete: bearbeiten && state.user.role === 'Admin' ? async () => {
+      await imkerLoeschen('imkermaterial', initial.ID);
+      toast('Artikel entfernt.');
+      renderImkerMaterial();
+    } : null
+  });
+}
+
+function openMaterialGekauftModal(m) {
+  const menge = kaufMenge(m);
+  openFormModal({
+    title: `Gekauft: ${m.Bezeichnung}`,
+    fields: [
+      { key: 'Datum', label: 'Datum', type: 'date', required: true },
+      { key: 'Menge', label: `Gekaufte Menge (${m.Einheit || 'Einheit'})`, type: 'number', step: 'any', required: true },
+      { key: 'Betrag', label: 'Bezahlt gesamt (€)', type: 'number', step: '0.01', help: 'Wird aus Menge × letztem Preis vorgeschlagen.' },
+      { key: 'Bezugsquelle', label: 'Bezugsquelle' },
+      { key: 'AlsKosten', label: 'Als Kosten in Finanzen buchen (Kategorie Imkerei)', type: 'checkbox' }
+    ],
+    initial: {
+      Datum: heuteIso(), Menge: menge, Bezugsquelle: m.Bezugsquelle, AlsKosten: true,
+      Betrag: menge !== '' && m.Preis !== '' ? (Number(menge) * Number(m.Preis)).toFixed(2) : ''
+    },
+    onSubmit: async (values) => {
+      const gekauft = Number(values.Menge);
+      if (!(gekauft > 0)) throw new Error('Bitte eine Menge angeben.');
+      const betrag = values.Betrag === '' ? null : Number(values.Betrag);
+      await imkerSpeichern('imkermaterial', {
+        MengeVorhanden: Number(m.MengeVorhanden || 0) + gekauft,
+        AufEinkaufsliste: false, EinkaufMenge: '',
+        Bezugsquelle: values.Bezugsquelle || m.Bezugsquelle,
+        ...(betrag !== null ? { Preis: (betrag / gekauft).toFixed(2) } : {})
+      }, m.ID);
+      if (values.AlsKosten && betrag) {
+        const kosten = await Api.call('allgemeinekosten.create', {
+          Datum: values.Datum, Kategorie: 'Imkerei', Betrag: betrag,
+          Beschreibung: `Imkerei-Einkauf: ${m.Bezeichnung} (${zahl(gekauft, 2)} ${m.Einheit || ''})${values.Bezugsquelle ? ' – ' + values.Bezugsquelle : ''}`.replace(/\s+\)/, ')')
+        });
+        cacheUpsert('allgemeinekosten.list', kosten);
+      }
+      toast(values.AlsKosten && betrag ? 'Eingekauft und in den Finanzen gebucht.' : 'Eingekauft – Bestand erhöht.');
+      renderImkerMaterial();
+    }
+  });
+  // Betrag live aus Menge × letztem Preis vorschlagen
+  if (m.Preis !== '') {
+    document.getElementById('field_Menge').addEventListener('input', (e) => {
+      const n = parseFloat(e.target.value);
+      if (!isNaN(n)) document.getElementById('field_Betrag').value = (n * Number(m.Preis)).toFixed(2);
+    });
+  }
 }

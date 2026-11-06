@@ -374,10 +374,11 @@
           <button id="btnImkerFuetterung" class="bg-white border shadow-sm hover:bg-gray-50 px-3 py-3 rounded-lg text-sm font-medium">🥣 Fütterung</button>
           <button id="btnImkerHonigernte" class="bg-white border shadow-sm hover:bg-gray-50 px-3 py-3 rounded-lg text-sm font-medium">🍯 Honigernte</button>
         </div>
-        <div class="flex gap-2 border-b">
-          <button data-itab="staende" class="itab-btn px-4 py-2 font-medium border-b-2 border-green-700">Stände &amp; Völker</button>
-          <button data-itab="aufgaben" class="itab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Aufgaben <span id="imkerAufgabenBadge"></span></button>
-          <button data-itab="auswertung" class="itab-btn px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Auswertungen</button>
+        <div class="flex gap-2 border-b overflow-x-auto">
+          <button data-itab="staende" class="itab-btn whitespace-nowrap px-4 py-2 font-medium border-b-2 border-green-700">Stände &amp; Völker</button>
+          <button data-itab="aufgaben" class="itab-btn whitespace-nowrap px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Aufgaben <span id="imkerAufgabenBadge"></span></button>
+          <button data-itab="material" class="itab-btn whitespace-nowrap px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Material <span id="imkerMaterialBadge"></span></button>
+          <button data-itab="auswertung" class="itab-btn whitespace-nowrap px-4 py-2 font-medium border-b-2 border-transparent text-gray-500">Auswertungen</button>
         </div>
         <div id="itab-staende" class="itab-panel space-y-4">
           <div id="bienenstaendeListe" class="grid grid-cols-1 gap-4 lg:grid-cols-2"></div>
@@ -388,6 +389,9 @@
         </div>
         <div id="itab-aufgaben" class="itab-panel hidden space-y-3">
           <div id="imkerAufgabenListe"></div>
+        </div>
+        <div id="itab-material" class="itab-panel hidden space-y-4">
+          <div id="imkerMaterial" class="grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
         </div>
         <div id="itab-auswertung" class="itab-panel hidden space-y-4">
           <div id="imkerAuswertung" class="grid grid-cols-1 gap-4 xl:grid-cols-2"></div>
@@ -518,9 +522,9 @@
 <div id="toast" class="hidden fixed bottom-4 right-4 max-w-sm bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50"></div>
 
 <!-- ?v= bei jedem Update erhöhen (gleich wie APP_VERSION in app.js), damit nie alte und neue Dateien gemischt werden -->
-<script src="config.js?v=2026-11-06.1"></script>
-<script src="api.js?v=2026-11-06.1"></script>
-<script src="app.js?v=2026-11-06.1"></script>
-<script src="imkerei.js?v=2026-11-06.1"></script>
+<script src="config.js?v=2026-11-06.2"></script>
+<script src="api.js?v=2026-11-06.2"></script>
+<script src="app.js?v=2026-11-06.2"></script>
+<script src="imkerei.js?v=2026-11-06.2"></script>
 </body>
 </html>

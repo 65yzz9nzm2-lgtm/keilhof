@@ -195,6 +195,18 @@ create table if not exists public.bienen_aufgaben (
 );
 
 -- ============================================================================
+-- MATERIAL & EINKAUFSLISTE (Futter, Behandlungsmittel, Geräte, Kleinteile ...)
+-- ============================================================================
+create table if not exists public.imker_material (
+  id uuid primary key default gen_random_uuid(),
+  kategorie text, bezeichnung text not null,
+  menge_vorhanden numeric, einheit text, mindest_bestand numeric,
+  auf_einkaufsliste boolean default false, einkauf_menge numeric,
+  bezugsquelle text, preis_je_einheit numeric, notiz text,
+  erstellt_von text, erstellt_am timestamptz default now(), aktiv boolean default true
+);
+
+-- ============================================================================
 -- INDIZES auf Fremdschlüsseln
 -- ============================================================================
 create index if not exists voelker_bienenstand_idx on public.voelker (bienenstand_id);
@@ -227,6 +239,7 @@ alter table public.varroa_kontrollen enable row level security;
 alter table public.honigernten enable row level security;
 alter table public.honigernte_voelker enable row level security;
 alter table public.bienen_aufgaben enable row level security;
+alter table public.imker_material enable row level security;
 
 do $$
 declare
@@ -234,7 +247,7 @@ declare
   tables text[] := array[
     'bienenstaende','voelker','voelker_ereignisse','koeniginnen','durchsichten',
     'durchsicht_voelker','behandlungen','fuetterungen','varroa_kontrollen',
-    'honigernten','honigernte_voelker','bienen_aufgaben'
+    'honigernten','honigernte_voelker','bienen_aufgaben','imker_material'
   ];
 begin
   foreach t in array tables loop

@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-06.1'; // muss mit version.json übereinstimmen
+const APP_VERSION = '2026-11-06.2'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -4114,12 +4114,15 @@ function openTiererloeseBearbeitenModal(initial, reload) {
   });
 }
 
+const ALLGEMEINE_KOSTEN_KATEGORIEN = ['Treibstoff-Sammelrechnung', 'Versicherung', 'Pacht', 'Strom', 'Beitraege']
+  .concat(IMKEREI_AKTIV ? ['Imkerei'] : []).concat(['Sonstiges']);
+
 function openAllgemeinekostenBearbeitenModal(initial, reload) {
   openFormModal({
     title: 'Allgemeine Kosten bearbeiten',
     fields: [
       { key: 'Datum', label: 'Datum', type: 'date', required: true },
-      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ['Treibstoff-Sammelrechnung', 'Versicherung', 'Pacht', 'Strom', 'Beitraege', 'Sonstiges'] },
+      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ALLGEMEINE_KOSTEN_KATEGORIEN },
       { key: 'MengeLiter', label: 'Menge (Liter, nur bei Treibstoff)', type: 'number', step: '0.1' },
       { key: 'Betrag', label: 'Betrag (€)', type: 'number', step: '0.01', required: true },
       { key: 'Beschreibung', label: 'Beschreibung' }
@@ -4249,7 +4252,7 @@ function openAllgemeineKostenModal() {
     title: 'Allgemeine Betriebskosten erfassen',
     fields: [
       { key: 'Datum', label: 'Datum', type: 'date', required: true },
-      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ['Treibstoff-Sammelrechnung', 'Versicherung', 'Pacht', 'Strom', 'Beitraege', 'Sonstiges'] },
+      { key: 'Kategorie', label: 'Kategorie', type: 'select', options: ALLGEMEINE_KOSTEN_KATEGORIEN },
       { key: 'MengeLiter', label: 'Menge (Liter, nur bei Treibstoff)', type: 'number', step: '0.1' },
       { key: 'Betrag', label: 'Betrag (€)', type: 'number', step: '0.01', required: true },
       { key: 'Beschreibung', label: 'Beschreibung' },
