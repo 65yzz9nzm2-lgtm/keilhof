@@ -748,7 +748,57 @@ const Api = {
       contentType: file.type || 'application/octet-stream'
     });
     if (error) throw new Error(error.message);
-    const { data } = supabaseClient.storage.from('hof-management').getPublicUrl(path);
-    return { url: data.publicUrl, path };
+    // In der Datenbank wird nur der Pfad gespeichert (z.B. "Imkerei/<uuid>.jpg").
+    // Angezeigt wird über zeitlich begrenzte Links, siehe Api.dateiLinks().
+    return { path };
+  },
+
+  // Zeitlich begrenzte Links (Signed URLs) für mehrere Dateien mit EINEM Aufruf.
+  // pfade: Liste von Pfaden im Speicher. Rückgabe: { pfad: link } - fehlende/defekte
+  // Dateien fehlen in der Rückgabe. Links werden zwischengespeichert und erst kurz
+  // vor Ablauf neu geholt.
+  async dateiLinks(pfade) {
+    const jetzt = Date.now();
+    const out = {};
+    const fehlend = [];
+    [...new Set(pfade.filter(Boolean))].forEach(p => {
+      const c = DATEI_LINK_CACHE.get(p);
+      if (c && c.bis - jetzt > DATEI_LINK_RESERVE_MS) out[p] = c.url;
+      else fehlend.push(p);
+    });
+    if (fehlend.length) {
+      const { data, error } = await supabaseClient.storage.from(DATEI_BUCKET).createSignedUrls(fehlend, DATEI_LINK_GUELTIG_S);
+      if (error) throw new Error(error.message);
+      (data || []).forEach(d => {
+        if (!d || d.error || !d.signedUrl) return;
+        DATEI_LINK_CACHE.set(d.path, { url: d.signedUrl, bis: jetzt + DATEI_LINK_GUELTIG_S * 1000 });
+        out[d.path] = d.signedUrl;
+      });
+    }
+    return out;
+  },
+
+  // Gültiger Link aus dem Zwischenspeicher (oder null, wenn neu geholt werden muss)
+  dateiLinkAusCache(pfad) {
+    const c = DATEI_LINK_CACHE.get(pfad);
+    return c && c.bis - Date.now() > DATEI_LINK_RESERVE_MS ? c.url : null;
   }
 };
+
+// ---- Dateispeicher: privat, Zugriff nur über zeitlich begrenzte Links ----
+const DATEI_BUCKET = 'hof-management';
+const DATEI_LINK_GUELTIG_S = 60 * 60;          // Links gelten 1 Stunde
+const DATEI_LINK_RESERVE_MS = 5 * 60 * 1000;   // 5 Min. vor Ablauf neu holen
+const DATEI_LINK_CACHE = new Map();             // pfad -> { url, bis }
+
+// Gespeicherten Wert in einen Speicher-Pfad umwandeln. Versteht auch alte,
+// gespeicherte Links (".../storage/v1/object/public/hof-management/<pfad>").
+// Rückgabe null = fremder Link (z.B. https://example.com/...), unverändert benutzen.
+function dateiPfad(wert) {
+  const s = String(wert || '').trim();
+  if (!s) return '';
+  const m = s.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/hof-management\/([^?#]+)/);
+  if (m) { try { return decodeURIComponent(m[1]); } catch (e) { return m[1]; } }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return null;
+  return s.replace(/^\/+/, '');
+}

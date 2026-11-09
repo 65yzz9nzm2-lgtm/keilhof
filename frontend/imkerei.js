@@ -186,7 +186,7 @@ async function imkerLoeschen(entity, id) {
 async function fotoHochladen(file) {
   if (!file) return null;
   const up = await Api.uploadFile(file, 'imkerei');
-  return up.url;
+  return up.path;
 }
 
 // ---- Neu zeichnen nach jeder Änderung ---------------------------------------
@@ -946,7 +946,7 @@ function renderStockkarte(volkId) {
     .filter(Boolean).join(' ') + (volk.Eingangsdatum ? `<div class="text-xs font-normal text-gray-500">seit ${fmtDate(volk.Eingangsdatum)}</div>` : '');
 
   body.innerHTML = `
-    ${volk.FotoURL ? `<img src="${esc(volk.FotoURL)}" alt="" class="w-full max-h-48 object-cover rounded-xl">` : ''}
+    ${volk.FotoURL ? `<img${dateiAttr(volk.FotoURL)} alt="" class="w-full max-h-48 object-cover rounded-xl">` : ''}
     <div class="flex items-center gap-2 flex-wrap text-sm">
       <span class="px-2 py-1 rounded-full ${aktiv ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'}">${esc(volk.Status)}${!aktiv && volk.Abgangsdatum ? ' seit ' + fmtDate(volk.Abgangsdatum) : ''}</span>
       <span class="text-gray-500">📍 ${esc(standName(volk.BienenstandID))}</span>

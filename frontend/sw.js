@@ -1,4 +1,4 @@
-const CACHE_NAME = 'keilhof-v16';
+const CACHE_NAME = 'keilhof-v17';
 const APP_SHELL = [
   './',
   './index.html',

@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-06.5'; // muss mit version.json übereinstimmen
+const APP_VERSION = '2026-11-09.1'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -74,6 +74,65 @@ function toast(msg, isError = false) {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => el.classList.add('hidden'), 4000);
 }
+
+// ============================================================================
+// DATEIEN (Fotos, Belege, Dokumente) - der Speicher ist privat.
+// In der Datenbank steht nur der Pfad. Im HTML steht er als data-datei; die
+// zeitlich begrenzten Links holt dateiLinksEinsetzen() gesammelt (ein Aufruf für
+// alle Dateien, die gerade neu auf dem Bildschirm sind).
+// ============================================================================
+function dateiAttr(wert) {
+  const v = String(wert || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return ` data-datei="${v}"`;
+}
+
+let _dateiTimer = null;
+function dateiLinksEinsetzen() {
+  if (_dateiTimer) return;
+  _dateiTimer = setTimeout(async () => {
+    _dateiTimer = null;
+    const els = [...document.querySelectorAll('[data-datei]:not([data-datei-ok])')];
+    if (!els.length) return;
+    els.forEach(el => el.setAttribute('data-datei-ok', ''));
+    const pfadVon = new Map(els.map(el => [el, dateiPfad(el.dataset.datei)]));
+    let links = {};
+    const pfade = [...pfadVon.values()].filter(Boolean);
+    try { if (pfade.length) links = await Api.dateiLinks(pfade); }
+    catch (e) { console.warn('Dateilinks:', e.message); }
+    els.forEach(el => {
+      const pfad = pfadVon.get(el);
+      const url = pfad === null ? el.dataset.datei : links[pfad];   // null = fremder Link
+      if (!url) {
+        el.title = 'Datei nicht verfügbar';
+        if (el.tagName === 'IMG') el.classList.add('hidden');
+        return;
+      }
+      if (el.tagName === 'IMG') el.src = url; else el.href = url;
+    });
+  }, 0);
+}
+new MutationObserver(dateiLinksEinsetzen).observe(document.body, { childList: true, subtree: true });
+
+// Link angetippt, aber (noch) kein gültiger Link da (z.B. Seite länger als eine
+// Stunde offen): neu holen. Das Fenster wird sofort geöffnet, sonst blockiert
+// Safari auf iPad/iPhone das Öffnen nach dem Warten.
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-datei]');
+  if (!a) return;
+  const pfad = dateiPfad(a.dataset.datei);
+  if (pfad === null) return;
+  const gueltig = Api.dateiLinkAusCache(pfad);
+  if (gueltig && a.href === gueltig) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const fenster = window.open('', '_blank');
+  Api.dateiLinks([pfad]).then(l => {
+    const url = l[pfad];
+    if (!url) { if (fenster) fenster.close(); toast('Datei nicht gefunden.', true); return; }
+    a.href = url;
+    if (fenster) fenster.location.href = url; else location.href = url;
+  }).catch(err => { if (fenster) fenster.close(); toast('Datei konnte nicht geöffnet werden: ' + err.message, true); });
+}, true);
 
 function euro(n) {
   return Number(n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -2584,7 +2643,7 @@ async function loadFuhrparkSection() {
   grid.innerHTML = state.maschinen.map(m => {
     const { status, hinweise } = computeAmpelStatus(m, intervalle);
     return `<div class="bg-white rounded-xl shadow overflow-hidden space-y-2">
-      ${m.FotoURL ? `<img src="${m.FotoURL}" class="w-full h-32 object-cover" alt="">` : `<div class="w-full h-16 bg-gray-100 flex items-center justify-center text-3xl">🚜</div>`}
+      ${m.FotoURL ? `<img${dateiAttr(m.FotoURL)} class="w-full h-32 object-cover" alt="">` : `<div class="w-full h-16 bg-gray-100 flex items-center justify-center text-3xl">🚜</div>`}
       <div class="p-4 pt-0 space-y-2">
       <div class="flex items-center justify-between">
         <div>
@@ -2643,7 +2702,7 @@ function openMaschineModal(initial = {}) {
       delete payload.Foto;
       if (values.Foto) {
         const up = await Api.uploadFile(values.Foto, 'maschine');
-        payload.FotoURL = up.url;
+        payload.FotoURL = up.path;
       }
       const saved = initial.ID
         ? await safeCall('maschinen.update', { id: initial.ID, ...payload }, 'Aktualisiert.')
@@ -2667,7 +2726,7 @@ function openDokumenteDetail(maschine) {
       const listeEl = document.getElementById('dokListe');
       listeEl.innerHTML = dokumente.length
         ? dokumente.map((d, i) => `<div class="flex items-center justify-between border-b py-1">
-             <a href="${d.url}" target="_blank" class="text-blue-600 underline text-sm">${d.name}</a>
+             <a href="#"${dateiAttr(d.url)} target="_blank" rel="noopener" class="text-blue-600 underline text-sm">${d.name}</a>
              <button data-idx="${i}" class="btn-dok-del text-red-600 hover:underline text-xs">Entfernen</button>
            </div>`).join('')
         : '<p class="text-gray-400 text-sm">Noch keine Dokumente hinterlegt.</p>';
@@ -2687,7 +2746,7 @@ function openDokumenteDetail(maschine) {
         ],
         onSubmit: async (values) => {
           const up = await Api.uploadFile(values.Datei, 'maschine');
-          dokumente.push({ name: values.Name, url: up.url });
+          dokumente.push({ name: values.Name, url: up.path });
           const saved = await safeCall('maschinen.update', { id: maschine.ID, DokumenteJSON: JSON.stringify(dokumente) }, 'Dokument gespeichert.');
           cacheUpsert('maschinen.list', saved);
           maschine.DokumenteJSON = JSON.stringify(dokumente);
@@ -2720,7 +2779,7 @@ function openMaschinenKostenDetail(maschine) {
           { key: 'Kategorie', label: 'Kategorie' },
           { label: 'Betrag', format: r => euro(r.Betrag) },
           { key: 'Beschreibung', label: 'Beschreibung' },
-          { label: 'Beleg', format: r => r.BelegURL ? `<a href="${r.BelegURL}" target="_blank" class="text-blue-600 underline">Öffnen</a>` : '' }
+          { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }
         ], rows,
         { onDelete: async (row) => { await safeCall('maschinenkosten.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('maschinenkosten.list', row.ID); await reload(); } });
     };
@@ -2737,7 +2796,7 @@ function openMaschinenKostenDetail(maschine) {
         let belegURL = '';
         if (values.Beleg) {
           const up = await Api.uploadFile(values.Beleg, 'maschine');
-          belegURL = up.url;
+          belegURL = up.path;
         }
         const saved = await safeCall('maschinenkosten.create', {
           MaschinenID: maschine.ID, Datum: values.Datum, Kategorie: values.Kategorie,
@@ -2789,7 +2848,7 @@ function openWartungErledigtModal(maschine, intervall, reload) {
     initial: { betriebsstunden: maschine.BetriebsstundenAktuell },
     onSubmit: async (values) => {
       let belegURL = '';
-      if (values.beleg) { const up = await Api.uploadFile(values.beleg, 'maschine'); belegURL = up.url; }
+      if (values.beleg) { const up = await Api.uploadFile(values.beleg, 'maschine'); belegURL = up.path; }
       const res = await safeCall('wartungsintervalle.erfassen', {
         id: intervall.ID, datum: values.datum, betriebsstunden: values.betriebsstunden,
         kosten: values.kosten, belegURL
@@ -2992,7 +3051,7 @@ function openSammelkostenModal() {
       if (!(Number(values.Gesamtbetrag) > 0)) throw new Error('Bitte einen Gesamtbetrag größer 0 eingeben.');
 
       let belegURL = '';
-      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'tier'); belegURL = up.url; }
+      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'tier'); belegURL = up.path; }
       const betraege = verteileBetragInCent(values.Gesamtbetrag, ids.length);
       const beschreibung = `${values.Beschreibung ? values.Beschreibung + ' ' : ''}(Sammelbuchung ${euro(values.Gesamtbetrag)} auf ${ids.length} Tiere)`;
 
@@ -3111,7 +3170,7 @@ function openTierBuchungenDetail(tier) {
       renderTable(document.getElementById('tKostenTable'),
         [{ label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
          { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
-         { label: 'Beleg', format: r => r.BelegURL ? `<a href="${r.BelegURL}" target="_blank" class="text-blue-600 underline">Öffnen</a>` : '' }],
+         { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }],
         kosten, { onDelete: async (row) => { await safeCall('tierkosten.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('tierkosten.list', row.ID); await reload(); } });
 
       renderTable(document.getElementById('tErloeseTable'),
@@ -3160,7 +3219,7 @@ function openTierBuchungenDetail(tier) {
       ],
       onSubmit: async (values) => {
         let belegURL = '';
-        if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'tier'); belegURL = up.url; }
+        if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'tier'); belegURL = up.path; }
         const saved = await safeCall('tierkosten.create', { TierID: tier.ID, ...values, BelegURL: belegURL }, 'Kosten erfasst.');
         cacheUpsert('tierkosten.list', saved);
         // "Kauf" ist der Eingang des Tieres am Betrieb - egal ob gleich bei Anlage oder
@@ -3592,7 +3651,7 @@ async function loadFlaschenlagerTab() {
   const grid = document.getElementById('flaschenlagerTable');
   grid.innerHTML = state.flaschenbestand.map(f => `
     <div class="bg-white rounded-xl shadow overflow-hidden space-y-2">
-      ${f.FotoURL ? `<img src="${f.FotoURL}" class="w-full h-32 object-cover" alt="">` : `<div class="w-full h-16 bg-gray-100 flex items-center justify-center text-3xl">🍾</div>`}
+      ${f.FotoURL ? `<img${dateiAttr(f.FotoURL)} class="w-full h-32 object-cover" alt="">` : `<div class="w-full h-16 bg-gray-100 flex items-center justify-center text-3xl">🍾</div>`}
       <div class="p-4 pt-0 space-y-2">
         <div class="font-semibold">${f.Bezeichnung}</div>
         <div class="text-xs text-gray-500">${f.Sorte || ''} ${f.Jahrgang || ''} · ${f.FlaschenGroesseMl || ''} ml</div>
@@ -3645,7 +3704,7 @@ function openFlaschenbestandModal(initial = {}) {
       delete payload.Foto;
       if (values.Foto) {
         const up = await Api.uploadFile(values.Foto, 'flasche');
-        payload.FotoURL = up.url;
+        payload.FotoURL = up.path;
       }
       const saved = initial.ID
         ? await safeCall('flaschenbestand.update', { id: initial.ID, ...payload }, 'Aktualisiert.')
@@ -4197,7 +4256,7 @@ function renderFinanzen() {
       { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
       { label: 'Menge', format: r => r.MengeLiter ? `${r.MengeLiter} l` : '' },
       { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
-      { label: 'Beleg', format: r => r.BelegURL ? `<a href="${r.BelegURL}" target="_blank" class="text-blue-600 underline">Öffnen</a>` : '' }
+      { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }
     ],
     [...state.allgemeinekosten].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
     {
@@ -4209,7 +4268,7 @@ function renderFinanzen() {
     [
       { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
       { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
-      { label: 'Beleg', format: r => r.BelegURL ? `<a href="${r.BelegURL}" target="_blank" class="text-blue-600 underline">Öffnen</a>` : '' }
+      { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }
     ],
     [...state.sonstigeeinnahmen].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
     {
@@ -4454,7 +4513,7 @@ function openAllgemeineKostenModal() {
     ],
     onSubmit: async (values) => {
       let belegURL = '';
-      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'maschine'); belegURL = up.url; }
+      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'maschine'); belegURL = up.path; }
       const saved = await safeCall('allgemeinekosten.create', { ...values, BelegURL: belegURL }, 'Kosten erfasst.');
       cacheUpsert('allgemeinekosten.list', saved);
       await loadFinanzenSection();
@@ -4482,7 +4541,7 @@ function openSonstigeEinnahmeModal(initial = {}, reload = null) {
     onSubmit: async (values) => {
       const payload = { ...values };
       delete payload.Beleg;
-      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'einnahme'); payload.BelegURL = up.url; }
+      if (values.Beleg) { const up = await Api.uploadFile(values.Beleg, 'einnahme'); payload.BelegURL = up.path; }
       const saved = bearbeiten
         ? await safeCall('sonstigeeinnahmen.update', { id: initial.ID, ...payload }, 'Aktualisiert.')
         : await safeCall('sonstigeeinnahmen.create', payload, 'Einnahme erfasst.');
