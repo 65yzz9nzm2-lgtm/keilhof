@@ -39,5 +39,5 @@ Hier wird festgehalten, was noch umgesetzt werden soll, damit nichts vergessen w
 
 ## Sonstiges
 
-- [ ] Direkte Links zu Fotos/Belegen schützen (Speicher privat + signierte Links) – optional
+- [x] Direkte Links zu Fotos/Belegen schützen (Speicher privat + signierte Links, 1 Std. gültig) – erledigt 13.11.2026
 - [ ] Imkerei-Aufgaben zusätzlich im allgemeinen To-Do-Board? (offene Frage)
