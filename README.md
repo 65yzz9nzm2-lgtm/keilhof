@@ -72,6 +72,9 @@ frontend/            die App (index.html, app.js, api.js, config.js …)
 backend/
   KEILHOF_SETUP.sql  Grund-Setup für die neue Datenbank
   IMKEREI_SETUP.sql  Zusatz: Tabellen für das Modul Imkerei (nach dem Grund-Setup ausführen)
-  FIX_DATEIEN_SCHUETZEN.sql  Nachtrag: Dateiliste nur für freigeschaltete Nutzer (nur nötig,
-                     wenn KEILHOF_SETUP.sql vor dem 05.11.2026 ausgeführt wurde)
+  NACHTRAG_DATEIPFADE.sql    Nachtrag 1: gespeicherte öffentliche Datei-Links in Pfade umwandeln
+  NACHTRAG_DATEIEN_PRIVAT.sql  Nachtrag 2: Speicher privat, Zugriff nur für angemeldete,
+                     freigeschaltete Nutzer (beide nur nötig, wenn KEILHOF_SETUP.sql vor
+                     dem 13.11.2026 ausgeführt wurde; Reihenfolge 1, dann 2)
+  FIX_DATEIEN_SCHUETZEN.sql  überholt durch NACHTRAG_DATEIEN_PRIVAT.sql
 ```

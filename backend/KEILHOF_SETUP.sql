@@ -368,15 +368,22 @@ end $$;
 
 -- ============================================================================
 -- STORAGE (Fotos/Belege) — ersetzt Google Drive
+-- Privat: Dateien sind nur über zeitlich begrenzte Links (Signed URLs) erreichbar,
+-- die die App für angemeldete, freigeschaltete Nutzer erzeugt. In der Datenbank
+-- steht nur der Pfad im Speicher (z.B. "Imkerei/<uuid>.jpg").
 -- ============================================================================
-insert into storage.buckets (id, name, public) values ('hof-management', 'hof-management', true)
-on conflict (id) do nothing;
+insert into storage.buckets (id, name, public) values ('hof-management', 'hof-management', false)
+on conflict (id) do update set public = false;
 
-create policy "aktive nutzer laden hoch" on storage.objects for insert
-  with check (bucket_id = 'hof-management' and public.is_active_user());
-create policy "aktive nutzer lesen dateien" on storage.objects for select
+drop policy if exists "aktive nutzer laden hoch" on storage.objects;
+drop policy if exists "aktive nutzer lesen dateien" on storage.objects;
+drop policy if exists "aktive nutzer loeschen eigene dateien" on storage.objects;
+drop policy if exists "aktive nutzer loeschen dateien" on storage.objects;
+create policy "aktive nutzer lesen dateien" on storage.objects for select to authenticated
   using (bucket_id = 'hof-management' and public.is_active_user());
-create policy "aktive nutzer loeschen eigene dateien" on storage.objects for delete
+create policy "aktive nutzer laden hoch" on storage.objects for insert to authenticated
+  with check (bucket_id = 'hof-management' and public.is_active_user());
+create policy "aktive nutzer loeschen dateien" on storage.objects for delete to authenticated
   using (bucket_id = 'hof-management' and public.is_active_user());
 
 -- >>>>>>>>>>>>>>>>>>>>>>>> add_tier_eingang_ausgang.sql
