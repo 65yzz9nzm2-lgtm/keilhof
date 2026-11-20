@@ -64,6 +64,41 @@
     #mainNav.nav-open { display: flex !important; flex-direction: column; }
   }
 
+  /* ---- Kalender ---- */
+  .kal-filter { min-height: 44px; padding: 8px 14px; border-radius: 9999px; border: 2px solid #e5e7eb; background: #fff; font-weight: 600; color: #374151; }
+  .kal-filter.aktiv { background: #166534; border-color: #166534; color: #fff; }
+  .kal-filter-faellig.aktiv { background: #d97706; border-color: #d97706; }
+  .kal-nav { min-width: 48px; height: 48px; border-radius: 14px; background: #f3f4f6; font-size: 26px; font-weight: 700; color: #374151; }
+  .kal-nav-text { font-size: 16px; padding: 0 14px; }
+  .kal-raster { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+  .kal-wochentag { text-align: center; font-size: 13px; font-weight: 700; color: #6b7280; padding: 4px 0; }
+  .kal-tag { min-height: 64px; border-radius: 12px; border: 2px solid transparent; background: #f9fafb; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 6px 2px; gap: 4px; }
+  .kal-tag:hover { background: #f0fdf4; }
+  .kal-tag.heute .kal-tag-nr { background: #166534; color: #fff; }
+  .kal-tag.gewaehlt { border-color: #16a34a; background: #f0fdf4; }
+  .kal-tag-nr { font-size: 16px; font-weight: 700; color: #1f2937; width: 30px; height: 30px; line-height: 30px; border-radius: 9999px; text-align: center; }
+  .kal-punkte { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
+  .kal-punkt { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9999px; color: #fff; font-size: 11px; font-weight: 700; line-height: 1; }
+  @media (min-width: 768px) { .kal-tag { min-height: 84px; } }
+  .kal-eintrag { border: 1px solid #e5e7eb; border-left-width: 6px; border-radius: 14px; background: #fff; overflow: hidden; }
+  .kal-rand-ueberfaellig { border-left-color: #dc2626; }
+  .kal-rand-offen { border-left-color: #f59e0b; }
+  .kal-rand-erledigt { border-left-color: #22c55e; }
+  .kal-eintrag-kopf { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 14px; text-align: left; min-height: 56px; }
+  .kal-eintrag-kopf[data-kal-ohne] { cursor: default; }
+  .kal-eintrag-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
+  .kal-eintrag-titel { display: block; font-weight: 700; color: #1f2937; }
+  .kal-eintrag-datum { display: block; font-size: 14px; color: #374151; }
+  .kal-eintrag-detail { display: block; font-size: 14px; color: #6b7280; }
+  .kal-pfeil { font-size: 26px; color: #9ca3af; flex-shrink: 0; }
+  .kal-badge { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 9999px; font-size: 12px; font-weight: 700; vertical-align: middle; }
+  .kal-badge-offen { background: #fef3c7; color: #92400e; }
+  .kal-badge-ueberfaellig { background: #fee2e2; color: #991b1b; }
+  .kal-badge-erledigt { background: #dcfce7; color: #166534; }
+  .kal-links { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px 52px; }
+  .kal-link { min-height: 36px; padding: 4px 12px; border-radius: 9999px; background: #f3f4f6; font-size: 14px; font-weight: 600; color: #374151; }
+  .kal-link:hover { background: #dcfce7; }
+
   /* ---- Oberfläche V2: Glas-Leiste unten ----
      Einschalten je Gerät unter Einstellungen -> Darstellung. Dann setzt app.js die
      Klasse mit-tabbar und die Leiste ersetzt das Seitenmenü. Ohne die Klasse bleibt
@@ -276,6 +311,7 @@
     <!-- Navigation -->
     <nav id="mainNav" class="hidden md:flex w-64 md:w-56 bg-white border-r p-3 flex-col gap-1 shrink-0 fixed md:static top-[57px] h-[calc(100dvh-57px)] md:h-auto left-0 z-[9999] overflow-y-auto shadow-2xl md:shadow-none">
       <button data-section="dashboard" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="layout-dashboard" class="w-[18px] h-[18px] shrink-0"></i> Dashboard</button>
+      <button data-section="kalender" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="calendar-days" class="w-[18px] h-[18px] shrink-0"></i> Kalender</button>
       <button data-section="flaechen" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="map" class="w-[18px] h-[18px] shrink-0"></i> Flächen</button>
       <button data-section="fuhrpark" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100"><i data-lucide="tractor" class="w-[18px] h-[18px] shrink-0"></i> Fuhrpark</button>
       <button data-section="vieh" class="nav-btn flex items-center gap-3 text-left px-3 py-2 rounded hover:bg-green-100">
@@ -306,6 +342,34 @@
         <div id="bereicheStart" aria-label="Bereiche"></div>
         <div id="dashboardGrid"></div>
         <div id="dashboardWetterCard" class="max-w-md mx-auto"></div>
+      </section>
+
+      <!-- KALENDER -->
+      <section id="section-kalender" class="app-section hidden space-y-4">
+        <h2 class="text-2xl font-extrabold text-gray-800 tracking-tight flex items-center gap-2"><i data-lucide="calendar-days" class="w-6 h-6 text-green-700"></i> Kalender</h2>
+        <div id="kalFilter" class="flex flex-wrap gap-2"></div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <h3 class="font-semibold text-lg mb-3">⏰ Demnächst <span class="text-sm font-normal text-gray-500">– überfällig und die nächsten 14 Tage</span></h3>
+          <div id="kalDemnaechst" class="space-y-2"></div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <button type="button" id="kalZurueck" class="kal-nav" aria-label="Monat zurück">‹</button>
+            <h3 id="kalMonatTitel" class="font-bold text-xl text-center flex-1"></h3>
+            <button type="button" id="kalHeute" class="kal-nav kal-nav-text">Heute</button>
+            <button type="button" id="kalVor" class="kal-nav" aria-label="Monat vor">›</button>
+          </div>
+          <div id="kalRaster" class="kal-raster"></div>
+          <div class="flex flex-wrap gap-x-5 gap-y-1 text-sm text-gray-600 mt-3">
+            <span class="flex items-center gap-1.5"><span class="kal-punkt bg-red-600"></span> überfällig</span>
+            <span class="flex items-center gap-1.5"><span class="kal-punkt bg-amber-500"></span> fällig</span>
+            <span class="flex items-center gap-1.5"><span class="kal-punkt bg-green-500"></span> erledigt / eingetragen</span>
+          </div>
+        </div>
+        <div class="bg-white rounded-xl shadow p-4">
+          <h3 id="kalTagTitel" class="font-semibold text-lg mb-3 scroll-mt-4"></h3>
+          <div id="kalTagListe" class="space-y-2"></div>
+        </div>
       </section>
 
       <!-- FLÄCHEN -->
@@ -640,9 +704,10 @@
 <div id="toast" class="hidden fixed bottom-4 right-4 max-w-sm bg-gray-900 text-white px-4 py-3 rounded-lg shadow-lg z-50"></div>
 
 <!-- ?v= bei jedem Update erhöhen (gleich wie APP_VERSION in app.js), damit nie alte und neue Dateien gemischt werden -->
-<script src="config.js?v=2026-11-20.2"></script>
-<script src="api.js?v=2026-11-20.2"></script>
-<script src="app.js?v=2026-11-20.2"></script>
-<script src="imkerei.js?v=2026-11-20.2"></script>
+<script src="config.js?v=2026-11-20.3"></script>
+<script src="api.js?v=2026-11-20.3"></script>
+<script src="app.js?v=2026-11-20.3"></script>
+<script src="imkerei.js?v=2026-11-20.3"></script>
+<script src="kalender.js?v=2026-11-20.3"></script>
 </body>
 </html>

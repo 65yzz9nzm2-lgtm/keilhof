@@ -1,9 +1,9 @@
-const CACHE_NAME = 'keilhof-v19';
+const CACHE_NAME = 'keilhof-v20';
 const APP_SHELL = [
   './',
   './index.html',
   './app.js',
-  './imkerei.js',
+  './imkerei.js', './kalender.js',
   './api.js',
   './config.js',
   './manifest.json',
