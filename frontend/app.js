@@ -2,7 +2,7 @@
 
 // Bei jedem Update erhöhen (gleich wie die ?v=... in index.html) - wird in den
 // Einstellungen angezeigt, damit man sieht, welcher Stand auf dem Gerät geladen ist.
-const APP_VERSION = '2026-11-20.1'; // muss mit version.json übereinstimmen
+const APP_VERSION = '2026-11-20.2'; // muss mit version.json übereinstimmen
 
 // Modul-Schalter aus config.js (fehlt der Eintrag, ist Weinbau aktiv wie im Original)
 const WEINBAU_AKTIV = !(CONFIG.MODULE && CONFIG.MODULE.WEINBAU === false);
@@ -4170,6 +4170,8 @@ async function loadFinanzenSection() {
 
   document.getElementById('finanzenJahr').onchange = renderFinanzen;
   document.getElementById('finanzenAnschaffungToggle').onchange = renderFinanzen;
+  const imkToggle = document.getElementById('finanzenImkereiToggle');
+  if (imkToggle) imkToggle.onchange = renderFinanzen;
   document.getElementById('erntevermarktungKategorieFilter').onchange = renderFinanzen;
 
   document.getElementById('btnNeueAllgemeineKosten').onclick = () => openAllgemeineKostenModal();
@@ -4195,6 +4197,17 @@ function populateFinanzenJahrDropdown() {
   sel.value = jahre.map(String).includes(bisher) ? bisher : String(jahre[0]);
 }
 
+// "Imkerei einbeziehen" (Finanzen): diese Kategorien zählen als Imkerei -
+// Kosten "Imkerei" (u.a. Material-Einkäufe), Verkäufe "Honig", Einnahmen "Förderung Imkerei".
+const IMKEREI_FINANZ_KATEGORIEN = ['Imkerei', 'Honig', 'Förderung Imkerei'];
+function finanzenMitImkerei() {
+  const el = document.getElementById('finanzenImkereiToggle');
+  return !el || el.checked;
+}
+function finanzenFilter(rows) {
+  return finanzenMitImkerei() ? rows : rows.filter(r => !IMKEREI_FINANZ_KATEGORIEN.includes(r.Kategorie));
+}
+
 function renderFinanzen() {
   const jahr = Number(document.getElementById('finanzenJahr').value);
   const mitAnschaffung = document.getElementById('finanzenAnschaffungToggle').checked;
@@ -4204,9 +4217,11 @@ function renderFinanzen() {
   const maschinenKostenJahr = state.maschinenkosten.filter(inJahr);
   const tierKostenJahr = state.tierkosten.filter(inJahr);
   const tierErloeseJahr = state.tiererloese.filter(inJahr);
-  const allgemeineKostenJahr = state.allgemeinekosten.filter(inJahr);
-  const erntevermarktungJahr = state.erntevermarktung.filter(inJahr);
-  const sonstigeEinnahmenJahr = state.sonstigeeinnahmen.filter(inJahr);
+  const mitImkerei = finanzenMitImkerei();
+  const ohneImkerei = IMKEREI_AKTIV && !mitImkerei ? ' (ohne Imkerei)' : '';
+  const allgemeineKostenJahr = finanzenFilter(state.allgemeinekosten).filter(inJahr);
+  const erntevermarktungJahr = finanzenFilter(state.erntevermarktung).filter(inJahr);
+  const sonstigeEinnahmenJahr = finanzenFilter(state.sonstigeeinnahmen).filter(inJahr);
 
   const anschaffungSumme = mitAnschaffung
     ? state.maschinen.filter(m => jahrVon(m.Anschaffungsdatum) === jahr).reduce((s, m) => s + Number(m.Anschaffungspreis || 0), 0)
@@ -4216,9 +4231,9 @@ function renderFinanzen() {
   const erloeseGesamt = sum(tierErloeseJahr) + sum(erntevermarktungJahr, 'Erloes') + sum(sonstigeEinnahmenJahr);
 
   document.getElementById('finanzenCards').innerHTML = `
-    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Kosten ${jahr}${mitAnschaffung ? ' (inkl. Anschaffungen)' : ''}</div><div class="text-xl font-bold text-red-700">${euro(kostenGesamt)}</div></div>
-    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Erlöse ${jahr}</div><div class="text-xl font-bold text-green-700">${euro(erloeseGesamt)}</div></div>
-    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Saldo ${jahr}</div><div class="text-xl font-bold">${euro(erloeseGesamt - kostenGesamt)}</div></div>`;
+    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Kosten ${jahr}${mitAnschaffung ? ' (inkl. Anschaffungen)' : ''}${ohneImkerei}</div><div class="text-xl font-bold text-red-700">${euro(kostenGesamt)}</div></div>
+    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Erlöse ${jahr}${ohneImkerei}</div><div class="text-xl font-bold text-green-700">${euro(erloeseGesamt)}</div></div>
+    <div class="bg-white rounded-xl shadow p-4"><div class="text-gray-500 text-sm">Saldo ${jahr}${ohneImkerei}</div><div class="text-xl font-bold">${euro(erloeseGesamt - kostenGesamt)}</div></div>`;
 
   const bars = [
     ['Maschinenkosten', sum(maschinenKostenJahr), 'bg-red-500', 'maschinenkosten'],
@@ -4237,7 +4252,7 @@ function renderFinanzen() {
     <div class="cursor-pointer hover:opacity-75" data-finanzen-bar="${kategorie}" title="Klicken für Einzelposten">
       <div class="flex justify-between text-sm mb-1"><span>${label}</span><span>${euro(val)}</span></div>
       <div class="w-full bg-gray-100 rounded h-3"><div class="${color} h-3 rounded" style="width:${(val / max * 100).toFixed(1)}%"></div></div>
-    </div>`).join('') + `<div class="pt-2 font-bold">Saldo ${jahr}: ${euro(erloeseGesamt - kostenGesamt)}</div>`;
+    </div>`).join('') + `<div class="pt-2 font-bold">Saldo ${jahr}${ohneImkerei}: ${euro(erloeseGesamt - kostenGesamt)}</div>`;
   document.getElementById('finanzenBars').querySelectorAll('[data-finanzen-bar]').forEach(el => {
     el.onclick = () => openFinanzenBarDetail(el.dataset.finanzenBar);
   });
@@ -4258,7 +4273,7 @@ function renderFinanzen() {
       { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
       { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }
     ],
-    [...state.allgemeinekosten].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
+    [...finanzenFilter(state.allgemeinekosten)].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
     {
       onEdit: (row) => openAllgemeinekostenBearbeitenModal(row, async () => await loadFinanzenSection()),
       onDelete: async (row) => { await safeCall('allgemeinekosten.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('allgemeinekosten.list', row.ID); await loadFinanzenSection(); }
@@ -4270,7 +4285,7 @@ function renderFinanzen() {
       { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' },
       { label: 'Beleg', format: r => r.BelegURL ? `<a href="#"${dateiAttr(r.BelegURL)} target="_blank" rel="noopener" class="text-blue-600 underline">Öffnen</a>` : '' }
     ],
-    [...state.sonstigeeinnahmen].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
+    [...finanzenFilter(state.sonstigeeinnahmen)].sort((a, b) => new Date(b.Datum) - new Date(a.Datum)),
     {
       onEdit: (row) => openSonstigeEinnahmeModal(row, async () => await loadFinanzenSection()),
       onDelete: async (row) => { await safeCall('sonstigeeinnahmen.delete', { id: row.ID }, 'Gelöscht.'); cacheRemove('sonstigeeinnahmen.list', row.ID); await loadFinanzenSection(); }
@@ -4278,8 +4293,8 @@ function renderFinanzen() {
 
   const kategorieFilter = document.getElementById('erntevermarktungKategorieFilter').value;
   const erntevermarktungGefiltert = kategorieFilter
-    ? state.erntevermarktung.filter(r => r.Kategorie === kategorieFilter)
-    : state.erntevermarktung;
+    ? finanzenFilter(state.erntevermarktung).filter(r => r.Kategorie === kategorieFilter)
+    : finanzenFilter(state.erntevermarktung);
   renderTable(document.getElementById('erntevermarktungTable'),
     [
       { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
@@ -4454,7 +4469,7 @@ function openFinanzenBarDetail(kategorie) {
       bearbeiten: openTierkostenBearbeitenModal
     },
     allgemeinekosten: {
-      titel: 'Allgemeine Kosten', liste: () => state.allgemeinekosten.filter(inJahr),
+      titel: 'Allgemeine Kosten', liste: () => finanzenFilter(state.allgemeinekosten).filter(inJahr),
       spalten: [
         { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
         { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' }
@@ -4471,7 +4486,7 @@ function openFinanzenBarDetail(kategorie) {
       bearbeiten: openTiererloeseBearbeitenModal
     },
     erntevermarktung: {
-      titel: 'Erntevermarktung & Verkäufe', liste: () => state.erntevermarktung.filter(inJahr),
+      titel: 'Erntevermarktung & Verkäufe', liste: () => finanzenFilter(state.erntevermarktung).filter(inJahr),
       spalten: [
         { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
         { label: 'Menge', format: r => mengeMitPreis(r) },
@@ -4480,7 +4495,7 @@ function openFinanzenBarDetail(kategorie) {
       bearbeiten: openErntevermarktungBearbeitenModal
     },
     sonstigeeinnahmen: {
-      titel: 'Förderungen & sonstige Einnahmen', liste: () => state.sonstigeeinnahmen.filter(inJahr),
+      titel: 'Förderungen & sonstige Einnahmen', liste: () => finanzenFilter(state.sonstigeeinnahmen).filter(inJahr),
       spalten: [
         { label: 'Datum', format: r => fmtDate(r.Datum) }, { key: 'Kategorie', label: 'Kategorie' },
         { label: 'Betrag', format: r => euro(r.Betrag) }, { key: 'Beschreibung', label: 'Beschreibung' }
@@ -4522,7 +4537,8 @@ function openAllgemeineKostenModal() {
 }
 
 // ---- Förderungen & sonstige Einnahmen (Beiträge vom Land, Weideinteressentschaft ...) ----
-const SONSTIGE_EINNAHMEN_KATEGORIEN = ['Förderung Land', 'EU-Prämie', 'Weideinteressentschaft', 'Alpungsprämie', 'Pacht/Miete', 'Sonstiges'];
+const SONSTIGE_EINNAHMEN_KATEGORIEN = ['Förderung Land', 'EU-Prämie', 'Weideinteressentschaft', 'Alpungsprämie', 'Pacht/Miete']
+  .concat(IMKEREI_AKTIV ? ['Förderung Imkerei'] : []).concat(['Sonstiges']);
 
 function openSonstigeEinnahmeModal(initial = {}, reload = null) {
   const bearbeiten = !!initial.ID;
