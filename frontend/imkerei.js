@@ -2313,6 +2313,7 @@ async function renderImkerMaterial() {
           <button type="button" data-id="${m.ID}" data-d="-1" class="btn-mat-menge w-10 h-10 rounded-lg bg-gray-100 text-xl font-bold" aria-label="weniger">−</button>
           <button type="button" data-id="${m.ID}" data-d="1" class="btn-mat-menge w-10 h-10 rounded-lg bg-gray-100 text-xl font-bold" aria-label="mehr">+</button>
           <button type="button" data-id="${m.ID}" class="btn-mat-liste w-10 h-10 rounded-lg text-lg ${m.AufEinkaufsliste === true ? 'bg-amber-500' : 'bg-gray-100 grayscale opacity-50'}" aria-label="auf die Einkaufsliste" aria-pressed="${m.AufEinkaufsliste === true}">🛒</button>
+          <button type="button" data-id="${m.ID}" class="btn-mat-bearbeiten h-10 px-3 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium whitespace-nowrap" aria-label="Bearbeiten oder löschen">✏️<span class="hidden sm:inline"> Bearbeiten</span></button>
         </div>`).join('')}</div>
       </div>`).join('') || '<p class="text-sm text-gray-400">Noch keine Artikel. Lege an, was du regelmäßig brauchst – z. B. Futter, Behandlungsmittel, Rähmchen, Gläser.</p>'}
     </div>`;
@@ -2324,6 +2325,7 @@ async function renderImkerMaterial() {
   if (druck) druck.onclick = () => drucken(druckKopf('Einkaufsliste Imkerei', []) + druckTabelle(['', 'Artikel', 'Menge', 'Kategorie', 'Bezugsquelle'],
     liste.map(m => ['☐', m.Bezeichnung, kaufMenge(m) !== '' ? `${zahl(kaufMenge(m), 2)} ${m.Einheit || ''}` : '', m.Kategorie, m.Bezugsquelle])));
   container.querySelectorAll('.btn-mat-edit').forEach(b => b.onclick = () => openMaterialModal(finde(b.dataset.id)));
+  container.querySelectorAll('.btn-mat-bearbeiten').forEach(b => b.onclick = () => openMaterialModal(finde(b.dataset.id)));
   container.querySelectorAll('.btn-mat-gekauft').forEach(b => b.onclick = () => openMaterialGekauftModal(finde(b.dataset.id)));
   const aendern = async (id, payload) => {
     try { await imkerSpeichern('imkermaterial', payload, id); } catch (e) { toast(e.message, true); }
